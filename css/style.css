@@ -1,0 +1,211 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  overscroll-behavior: none;
+}
+
+#map {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+/* ---------- spodní lišta nástrojů ---------- */
+
+#toolbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  display: flex;
+  gap: 6px;
+  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.tool-btn {
+  flex: 1;
+  min-height: 48px;
+  border: none;
+  border-radius: 10px;
+  background: #eef2ee;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e3a2f;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tool-btn.active {
+  background: #1e3a2f;
+  color: #fff;
+}
+
+/* ---------- bottom sheety ---------- */
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1200;
+  background: #fff;
+  border-radius: 16px 16px 0 0;
+  padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sheet-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: #ccc;
+  margin: 4px auto 8px;
+}
+
+.sheet h2 {
+  margin: 0 0 12px;
+  font-size: 17px;
+  color: #1e3a2f;
+}
+
+#backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* ---------- barvy ---------- */
+
+#color-row {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.color-swatch {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  background-color: currentColor;
+  cursor: pointer;
+  padding: 0;
+}
+
+.color-swatch[data-color="#e53935"] { background: #e53935; }
+.color-swatch[data-color="#1e88e5"] { background: #1e88e5; }
+.color-swatch[data-color="#fdd835"] { background: #fdd835; }
+.color-swatch[data-color="#43a047"] { background: #43a047; }
+
+.color-swatch.selected {
+  border-color: #1e3a2f;
+  box-shadow: 0 0 0 2px #fff inset;
+}
+
+/* ---------- formulář ---------- */
+
+#note-text {
+  width: 100%;
+  font-size: 16px; /* zabrání zoomu iOS při fokusu */
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  resize: none;
+  margin-bottom: 12px;
+}
+
+.sheet-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sheet-buttons button,
+.menu-item {
+  min-height: 48px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sheet-buttons button {
+  flex: 1;
+  background: #eef2ee;
+  color: #1e3a2f;
+}
+
+.sheet-buttons .primary { background: #1e3a2f; color: #fff; }
+.sheet-buttons .danger  { background: #fdecea; color: #c62828; }
+.sheet-buttons .secondary { background: #f0f0f0; color: #555; }
+
+.menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0 14px;
+  margin-bottom: 8px;
+  background: #eef2ee;
+  color: #1e3a2f;
+}
+
+.menu-item.secondary { background: #f0f0f0; color: #555; text-align: center; }
+
+/* ---------- toast ---------- */
+
+#toast {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1300;
+  background: rgba(30, 58, 47, 0.95);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 600;
+  max-width: 90vw;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* ---------- markery ---------- */
+
+.note-pin {
+  display: block;
+  width: 26px;
+  height: 26px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.locate-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #1a73e8;
+  border: 3px solid #fff;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
+}
+
+/* Leaflet ovládání kousek od horního okraje (výřez telefonu) */
+.leaflet-top .leaflet-control { margin-top: calc(10px + env(safe-area-inset-top)); }
+
+.leaflet-touch .leaflet-bar a {
+  width: 40px;
+  height: 40px;
+  line-height: 40px;
+}

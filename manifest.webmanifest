@@ -1,0 +1,14 @@
+{
+  "name": "Lukávka – mapa poznámek",
+  "short_name": "Lukávka",
+  "description": "Interaktivní mapa revitalizovaného toku Lukávky s barevnými poznámkami.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#1e3a2f",
+  "theme_color": "#1e3a2f",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
