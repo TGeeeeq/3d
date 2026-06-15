@@ -1,7 +1,7 @@
 // Orchestrátor terénní aplikace ČSOP Trosečníci.
 'use strict';
 import { Api } from './api.js';
-import { Store, setLiveCollections, startSync, stopSync } from './store.js';
+import { Store, setLiveCollections, startSync, stopSync, onPending } from './store.js';
 import { $, $$, toast, openOverlay, closeOverlay, setUser } from './ui.js';
 import { MapView } from './map.js';
 import { TrackView } from './track.js';
@@ -48,11 +48,38 @@ function showTab(tab) {
   }
 }
 
+let pendingWired = false;
+function wirePendingBadge() {
+  if (pendingWired) return;
+  pendingWired = true;
+  const badge = document.createElement('span');
+  badge.id = 'pending-badge';
+  badge.hidden = true;
+  $('#user-chip').insertAdjacentElement('beforebegin', badge);
+  let clearT = null;
+  onPending((n) => {
+    if (n > 0) {
+      badge.textContent = `⏳ ${n}`;
+      badge.className = '';
+      badge.hidden = false;
+      if (clearT) clearTimeout(clearT);
+    } else if (!badge.hidden) {
+      badge.textContent = '✓ uloženo';
+      badge.className = 'ok';
+      if (clearT) clearTimeout(clearT);
+      clearT = setTimeout(() => {
+        badge.hidden = true;
+      }, 2000);
+    }
+  });
+}
+
 function enterApp(user) {
   setUser(user);
   $('#login-screen').hidden = true;
   $('#app').hidden = false;
   $('#user-name').textContent = user.name;
+  wirePendingBadge();
   startSync(20000);
   const last = localStorage.getItem('ochr.tab');
   showTab(VIEWS[last] ? last : 'map');

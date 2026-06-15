@@ -1,11 +1,16 @@
 # Trosečníci – terénní aplikace
 
 Sdílená terénní aplikace pro [ČSOP Trosečníci](https://www.csoptrosecnici.cz). Mobilní PWA pro
-práci v terénu na revitalizovaném toku **Lukávky u Damníkova** i na dalších spravovaných lokalitách.
+práci v terénu na revitalizovaném toku **Rudoltička** (u Rudoltic / Ostrova) a na dalších
+spravovaných lokalitách v okruhu **20 km od Ostrova**.
 
 Data jsou **živá a sdílená mezi všemi členy týmu** a bezpečně uložená na serveru (Vercel Blob,
-privátní úložiště). Každý se přihlásí jedním týmovým kódem a svým jménem; všechno, co kdokoliv
-zapíše, vidí celý tým.
+privátní úložiště). Každý se přihlásí jedním týmovým kódem a **svým jménem**; všechno, co kdokoliv
+zapíše, vidí celý tým **barevně odlišené podle autora** (filtr „Vše / Jen moje“).
+
+**Automatické ukládání:** zápisy i trasy se ukládají samy – hned se zobrazí a na pozadí odešlou do
+DB. Bez signálu počkají ve frontě v zařízení a odešlou se samy, jakmile je připojení (offline-first).
+Nahrávaná trasa se průběžně zálohuje a přežije i zavření appky.
 
 ## Co aplikace umí
 

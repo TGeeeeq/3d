@@ -1,12 +1,20 @@
-// Deník do terénu: napsat, nakreslit, nebo nahrát hlasovou poznámku.
+// Deník do terénu: napsat, nakreslit, nebo nahrát hlas. Text se průběžně sám zálohuje (koncept).
 'use strict';
 import { Store } from './store.js';
 import { Api } from './api.js';
 import {
-  $, toast, openSheet, closeOverlay, escapeHtml, fmtDateTime, confirmSheet, emptyState,
+  $, $$, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDateTime, confirmSheet, emptyState, getUser,
 } from './ui.js';
 
-// vybere podporovaný audio formát pro MediaRecorder
+const DRAFT_KEY = 'ochr.diary.draft';
+const FILTER_KEY = 'ochr.diary.filter';
+let filterMine = false;
+try {
+  filterMine = localStorage.getItem(FILTER_KEY) === 'mine';
+} catch {
+  /* ignore */
+}
+
 function pickAudio() {
   const opts = [
     ['audio/webm', 'webm'],
@@ -59,7 +67,6 @@ function setupCanvas(canvas) {
   canvas.addEventListener('pointerup', end);
   canvas.addEventListener('pointerleave', end);
   return {
-    ctx,
     isDirty: () => dirty,
     setColor: (c) => (ctx.strokeStyle = c),
     clear: () => {
@@ -72,13 +79,18 @@ function setupCanvas(canvas) {
 }
 
 function openEntryForm() {
+  let draft = '';
+  try {
+    draft = localStorage.getItem(DRAFT_KEY) || '';
+  } catch {
+    draft = '';
+  }
   const sheet = openSheet(`
     <h2>Nový zápis do deníku</h2>
     <div class="field">
       <label>Text</label>
-      <textarea id="d-text" rows="4" placeholder="Co se dnes v terénu dělo…"></textarea>
+      <textarea id="d-text" rows="4" placeholder="Co se dnes v terénu dělo…">${escapeHtml(draft)}</textarea>
     </div>
-
     <div class="field">
       <label>Kresba <span style="font-weight:500;color:var(--muted)">(nepovinné)</span></label>
       <div class="draw-wrap"><canvas id="d-canvas"></canvas></div>
@@ -91,7 +103,6 @@ function openEntryForm() {
         <button type="button" class="btn-ghost" id="d-clear" style="min-height:34px;padding:0 12px">Vymazat</button>
       </div>
     </div>
-
     <div class="field">
       <label>Hlasová poznámka <span style="font-weight:500;color:var(--muted)">(nepovinné)</span></label>
       <div class="row" style="gap:8px">
@@ -100,11 +111,19 @@ function openEntryForm() {
       </div>
       <audio id="d-audio-prev" class="media-audio" controls hidden></audio>
     </div>
-
     <div class="sheet-buttons">
       <button class="primary" data-save type="button">Uložit zápis</button>
       <button class="secondary" data-cancel type="button">Zrušit</button>
     </div>`);
+
+  const textEl = sheet.querySelector('#d-text');
+  textEl.addEventListener('input', () => {
+    try {
+      localStorage.setItem(DRAFT_KEY, textEl.value);
+    } catch {
+      /* ignore */
+    }
+  });
 
   const canvas = sheet.querySelector('#d-canvas');
   const pen = setupCanvas(canvas);
@@ -117,7 +136,6 @@ function openEntryForm() {
   });
   sheet.querySelector('#d-clear').onclick = () => pen.clear();
 
-  // --- hlas ---
   let mediaRecorder = null;
   let chunks = [];
   let audioBlob = null;
@@ -164,13 +182,21 @@ function openEntryForm() {
     }
   };
 
+  const clearDraft = () => {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
+  };
+
   sheet.querySelector('[data-cancel]').onclick = () => {
     if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
     closeOverlay();
   };
 
   sheet.querySelector('[data-save]').onclick = async () => {
-    const text = sheet.querySelector('#d-text').value.trim();
+    const text = textEl.value.trim();
     if (!text && !pen.isDirty() && !audioBlob) {
       toast('Zápis je prázdný');
       return;
@@ -178,46 +204,54 @@ function openEntryForm() {
     const saveBtn = sheet.querySelector('[data-save]');
     saveBtn.disabled = true;
     saveBtn.textContent = 'Ukládám…';
+    const entry = { text };
     try {
-      const entry = { text };
-      if (pen.isDirty()) {
-        const png = await pen.toBlob();
-        entry.drawingKey = await Api.uploadMedia(png, 'png');
-      }
-      if (audioBlob) {
-        entry.audioKey = await Api.uploadMedia(audioBlob, audioExt);
-      }
-      await Store.add('diary', entry);
-      closeOverlay();
-      toast('Zápis uložen ✓');
+      // Média potřebují připojení – nahrajeme je teď, ať se neztratí kresba/hlas.
+      if (pen.isDirty()) entry.drawingKey = await Api.uploadMedia(await pen.toBlob(), 'png');
+      if (audioBlob) entry.audioKey = await Api.uploadMedia(audioBlob, audioExt);
     } catch {
       saveBtn.disabled = false;
       saveBtn.textContent = 'Uložit zápis';
-      toast('Uložení selhalo – zkontroluj připojení', { error: true });
+      toast('Kresbu/hlas nelze nahrát bez připojení. Text můžeš uložit hned, médium přidej online.', { error: true, ms: 4500 });
+      return;
     }
+    await Store.add('diary', entry); // text se uloží i offline (fronta)
+    clearDraft();
+    closeOverlay();
+    toast('Zápis uložen ✓');
   };
+}
+
+function setFilter(mine) {
+  filterMine = mine;
+  try {
+    localStorage.setItem(FILTER_KEY, mine ? 'mine' : 'all');
+  } catch {
+    /* ignore */
+  }
+  $$('#view-diary .seg button').forEach((b) => b.classList.toggle('active', (b.dataset.f === 'mine') === mine));
+  renderList(Store.get('diary'));
 }
 
 function renderList(items) {
   const list = $('#diary-list');
   if (!list) return;
-  if (!items.length) {
+  const me = getUser()?.name;
+  const shown = filterMine ? items.filter((e) => e.author === me) : items;
+  if (!shown.length) {
     list.innerHTML = emptyState('📓', 'Zatím prázdný deník. Klepni na + a přidej první zápis.');
     return;
   }
-  list.innerHTML = items
+  list.innerHTML = shown
     .map((e) => {
-      const img = e.drawingKey
-        ? `<img class="media-img" loading="lazy" src="${Api.mediaUrl(e.drawingKey)}" alt="kresba">`
-        : '';
-      const audio = e.audioKey
-        ? `<audio class="media-audio" controls preload="none" src="${Api.mediaUrl(e.audioKey)}"></audio>`
-        : '';
+      const img = e.drawingKey ? `<img class="media-img" loading="lazy" src="${Api.mediaUrl(e.drawingKey)}" alt="kresba">` : '';
+      const audio = e.audioKey ? `<audio class="media-audio" controls preload="none" src="${Api.mediaUrl(e.audioKey)}"></audio>` : '';
       return `
-      <div class="card">
+      <div class="card" style="border-left:4px solid ${userColor(e.author)}">
         <div class="meta" style="margin-top:0;margin-bottom:6px">
-          <span class="pill author">${escapeHtml(e.author || '?')}</span>
+          ${authorChip(e.author)}
           <span>${escapeHtml(fmtDateTime(e.createdAt))}</span>
+          ${e._pending ? '<span class="pend">⏳ ukládá se</span>' : ''}
         </div>
         ${e.text ? `<div class="body">${escapeHtml(e.text)}</div>` : ''}
         ${img}${audio}
@@ -230,12 +264,8 @@ function renderList(items) {
   list.querySelectorAll('[data-del]').forEach((b) => {
     b.onclick = async () => {
       if (!(await confirmSheet('Smazat tento zápis?', { okText: 'Smazat', danger: true }))) return;
-      try {
-        await Store.remove('diary', b.dataset.del);
-        toast('Smazáno');
-      } catch {
-        toast('Smazání selhalo', { error: true });
-      }
+      await Store.remove('diary', b.dataset.del);
+      toast('Smazáno');
     };
   });
 }
@@ -245,8 +275,14 @@ export const DiaryView = {
   mount(viewEl) {
     viewEl.innerHTML = `
       <div class="view-head"><div><h2>Terénní deník</h2><div class="sub">Text, kresba i hlas – sdílené v týmu</div></div></div>
+      <div class="seg">
+        <button data-f="all" class="active" type="button">👥 Vše</button>
+        <button data-f="mine" type="button">🙋 Moje</button>
+      </div>
       <div id="diary-list"></div>
       <button class="fab" id="diary-add" type="button" aria-label="Nový zápis">+</button>`;
+    $$('#view-diary .seg button').forEach((b) => b.addEventListener('click', () => setFilter(b.dataset.f === 'mine')));
+    $$('#view-diary .seg button').forEach((b) => b.classList.toggle('active', (b.dataset.f === 'mine') === filterMine));
     $('#diary-add').addEventListener('click', openEntryForm);
     Store.subscribe('diary', renderList);
   },

@@ -1,12 +1,16 @@
-// Mapa: sdílené body a plochy nad tokem Lukávky. Jednoduchá volba ze 2 kategorií.
+// Mapa: sdílené body a plochy. Region = 20 km okruh kolem Ostrova (max dosah lokalit).
+// Potok s meandry = Rudoltička (u Rudoltic / Ostrova). Volba kategorie + barva autora.
 'use strict';
 import { Store } from './store.js';
 import {
-  $, toast, openSheet, openOverlay, closeOverlay, escapeHtml, fmtDateTime, confirmSheet,
+  $, toast, openSheet, openOverlay, closeOverlay, escapeHtml, fmtDateTime, confirmSheet, getUser, userColor,
 } from './ui.js';
 
-const STREAM_BOUNDS = L.latLngBounds([49.916, 16.52], [49.938, 16.55]);
+// Ostrov u Lanškrouna – střed oblasti, kde tým pečuje o lokality.
+const OSTROV = [49.930273, 16.540589];
+const PERIMETER_RADIUS = 20000; // 20 km
 const BASEMAP_KEY = 'ochr.basemap.v1';
+const FILTER_KEY = 'ochr.map.filter';
 
 // Kategorie pro rychlý zápis v terénu (volba u špendlíku i plochy).
 export const CATS = {
@@ -21,11 +25,13 @@ export const CATS = {
   vysadba: { name: 'Výsadba', icon: '🌱', color: '#2e7d32' },
   most: { name: 'Most / lávka', icon: '🌉', color: '#455a64' },
   meandr: { name: 'Meandr', icon: '🌊', color: '#00838f' },
+  pastva: { name: 'Pastva / kravky', icon: '🐄', color: '#a1887f' },
 };
 const catOf = (c) => CATS[c] || CATS.observation;
 
 let map = null;
 let notesLayer = null;
+let perimeter = null;
 const rendered = new Map(); // id -> { layer, sig }
 let addPointMode = false;
 let shapeEditFeature = null;
@@ -35,21 +41,33 @@ let locateDot = null;
 let locateCircle = null;
 let firstFix = false;
 let btnFinishShape = null;
+let filterMine = false;
+try {
+  filterMine = localStorage.getItem(FILTER_KEY) === 'mine';
+} catch {
+  /* ignore */
+}
 
-function pinIcon(cat) {
+function pinIcon(cat, author) {
   const c = catOf(cat);
+  const ring = userColor(author);
   return L.divIcon({
     className: '',
-    html: `<span class="note-pin" style="background:${c.color}"><span class="pin-ic">${c.icon}</span></span>`,
+    html: `<span class="note-pin" style="background:${c.color};box-shadow:0 0 0 3px ${ring},0 1px 4px rgba(0,0,0,.5)"><span class="pin-ic">${c.icon}</span></span>`,
     iconSize: [26, 26],
     iconAnchor: [13, 24],
   });
 }
-const polygonStyle = (color) => ({ color, weight: 3, fillColor: color, fillOpacity: 0.25 });
+const polygonStyle = (color, author) => ({
+  color: userColor(author),
+  weight: 3,
+  fillColor: color,
+  fillOpacity: 0.25,
+});
 
 function initMap() {
   map = L.map('map', { zoomControl: true, attributionControl: true });
-  map.fitBounds(STREAM_BOUNDS);
+  map.setView(OSTROV, 14);
 
   const baseLayers = {
     'Letecká ČÚZK (CZ ortofoto)': L.tileLayer(
@@ -81,9 +99,18 @@ function initMap() {
     }
   });
 
+  // perimetr 20 km kolem Ostrova
+  perimeter = L.circle(OSTROV, {
+    radius: PERIMETER_RADIUS,
+    color: '#1e3a2f',
+    weight: 2,
+    dashArray: '8,6',
+    fill: false,
+    interactive: false,
+  }).addTo(map);
+
   notesLayer = L.layerGroup().addTo(map);
 
-  // tlačítko Hotovo pro úpravu tvaru
   btnFinishShape = document.createElement('button');
   btnFinishShape.type = 'button';
   btnFinishShape.className = 'tool-btn';
@@ -95,6 +122,18 @@ function initMap() {
   $('#view-map').appendChild(btnFinishShape);
   btnFinishShape.addEventListener('click', finishShapeEdit);
 
+  // filtr Vše / Jen moje
+  const filterBar = document.createElement('div');
+  filterBar.id = 'map-filter';
+  filterBar.innerHTML = `
+    <button data-f="all" type="button">👥 Vše</button>
+    <button data-f="mine" type="button">🙋 Moje</button>`;
+  $('#view-map').appendChild(filterBar);
+  filterBar.querySelectorAll('button').forEach((b) =>
+    b.addEventListener('click', () => setFilter(b.dataset.f === 'mine'))
+  );
+  syncFilterUi();
+
   map.on('click', onMapClick);
   map.on('pm:create', onPolygonCreate);
   map.on('locationfound', onLocationFound);
@@ -104,19 +143,34 @@ function initMap() {
   });
 }
 
-// ---------- vykreslení (reconcile) ----------
-function featureSig(f) {
-  return `${f.updatedAt || f.createdAt}|${f.category}|${f.note}`;
+function setFilter(mine) {
+  filterMine = mine;
+  try {
+    localStorage.setItem(FILTER_KEY, mine ? 'mine' : 'all');
+  } catch {
+    /* ignore */
+  }
+  syncFilterUi();
+  render(Store.get('notes'));
 }
+function syncFilterUi() {
+  const bar = $('#map-filter');
+  if (!bar) return;
+  bar.querySelector('[data-f="all"]').classList.toggle('active', !filterMine);
+  bar.querySelector('[data-f="mine"]').classList.toggle('active', filterMine);
+}
+
+// ---------- vykreslení (reconcile) ----------
+const featureSig = (f) => `${f.updatedAt || f.createdAt}|${f.category}|${f.note}|${f.author}|${f._pending ? 1 : 0}`;
 
 function buildLayer(f) {
   let layer;
   if (f.kind === 'point') {
     const [lng, lat] = f.geometry.coordinates;
-    layer = L.marker([lat, lng], { icon: pinIcon(f.category) });
+    layer = L.marker([lat, lng], { icon: pinIcon(f.category, f.author) });
   } else {
     const ring = f.geometry.coordinates[0].map(([lng, lat]) => [lat, lng]);
-    layer = L.polygon(ring, polygonStyle(catOf(f.category).color));
+    layer = L.polygon(ring, polygonStyle(catOf(f.category).color, f.author));
   }
   layer.on('click', (e) => {
     L.DomEvent.stop(e);
@@ -129,8 +183,10 @@ function buildLayer(f) {
 
 function render(items) {
   if (!map) return;
+  const me = getUser()?.name;
+  const visible = filterMine ? items.filter((f) => f.author === me) : items;
   const seen = new Set();
-  for (const f of items) {
+  for (const f of visible) {
     if (!f.geometry || !f.kind) continue;
     seen.add(f.id);
     const sig = featureSig(f);
@@ -157,7 +213,7 @@ function setAddPointMode(on) {
 function onMapClick(e) {
   if (!addPointMode) return;
   setAddPointMode(false);
-  const temp = L.marker(e.latlng, { icon: pinIcon('observation') }).addTo(map);
+  const temp = L.marker(e.latlng, { icon: pinIcon('observation', getUser()?.name) }).addTo(map);
   openNoteForm('point', { type: 'Point', coordinates: [e.latlng.lng, e.latlng.lat] }, temp);
 }
 
@@ -169,7 +225,7 @@ function onPolygonCreate(e) {
   openNoteForm('polygon', { type: 'Polygon', coordinates: [ring] }, e.layer);
 }
 
-// ---------- formulář nové/upravené poznámky ----------
+// ---------- formulář ----------
 function noteFormHtml({ title, category = 'observation', note = '', editing = false }) {
   const choice = (key) => `
     <button type="button" class="choice ${category === key ? 'selected' : ''}" data-cat="${key}">
@@ -181,7 +237,7 @@ function noteFormHtml({ title, category = 'observation', note = '', editing = fa
     <div class="choice-grid">${choices}</div>
     <div class="field">
       <label>Poznámka</label>
-      <textarea id="note-text" rows="3" placeholder="Např.: tady roste hromada bodláku…">${escapeHtml(note)}</textarea>
+      <textarea id="note-text" rows="3" placeholder="Např.: tady roste hromada pcháče…">${escapeHtml(note)}</textarea>
     </div>
     <div class="sheet-buttons">
       <button class="primary" data-save type="button">Uložit</button>
@@ -218,18 +274,8 @@ function openNoteForm(kind, geometry, tempLayer) {
     const note = sheet.querySelector('#note-text').value.trim();
     cleanup();
     closeOverlay();
-    try {
-      await Store.add('notes', {
-        kind,
-        geometry,
-        category,
-        color: catOf(category).color,
-        note,
-      });
-      toast('Uloženo ✓');
-    } catch {
-      toast('Uložení selhalo – zkontroluj připojení', { error: true });
-    }
+    await Store.add('notes', { kind, geometry, category, color: catOf(category).color, note });
+    toast('Uloženo ✓');
   };
 }
 
@@ -240,7 +286,7 @@ function openNoteView(f) {
   const meta = document.createElement('p');
   meta.className = 'login-foot';
   meta.style.textAlign = 'left';
-  meta.innerHTML = `Vložil(a): <b>${escapeHtml(f.author || '?')}</b> · ${escapeHtml(fmtDateTime(f.createdAt))}`;
+  meta.innerHTML = `Vložil(a): <b style="color:${userColor(f.author)}">${escapeHtml(f.author || '?')}</b> · ${escapeHtml(fmtDateTime(f.createdAt))}${f._pending ? ' · ⏳ čeká na odeslání' : ''}`;
   sheet.appendChild(meta);
   const getCat = bindChoice(sheet);
 
@@ -249,23 +295,17 @@ function openNoteView(f) {
     const category = getCat();
     const note = sheet.querySelector('#note-text').value.trim();
     closeOverlay();
-    try {
-      await Store.update('notes', f.id, { category, color: catOf(category).color, note });
-      toast('Uloženo ✓');
-    } catch {
-      toast('Uložení selhalo', { error: true });
-    }
+    await Store.update('notes', f.id, { category, color: catOf(category).color, note });
+    toast('Uloženo ✓');
   };
-  sheet.querySelector('[data-del]').onclick = async () => {
-    closeOverlay();
-    if (!(await confirmSheet('Opravdu smazat tuhle poznámku?', { okText: 'Smazat', danger: true }))) return;
-    try {
+  const delBtn = sheet.querySelector('[data-del]');
+  if (delBtn)
+    delBtn.onclick = async () => {
+      closeOverlay();
+      if (!(await confirmSheet('Opravdu smazat tuhle poznámku?', { okText: 'Smazat', danger: true }))) return;
       await Store.remove('notes', f.id);
       toast('Smazáno');
-    } catch {
-      toast('Smazání selhalo', { error: true });
-    }
-  };
+    };
   const shapeBtn = sheet.querySelector('[data-shape]');
   if (shapeBtn) {
     if (f.kind !== 'polygon') shapeBtn.hidden = true;
@@ -273,7 +313,7 @@ function openNoteView(f) {
   }
 }
 
-// ---------- úprava tvaru plochy ----------
+// ---------- úprava tvaru ----------
 function startShapeEdit(f) {
   const r = rendered.get(f.id);
   if (!r) return;
@@ -283,7 +323,6 @@ function startShapeEdit(f) {
   btnFinishShape.hidden = false;
   toast('Tahej za body a uprav tvar, pak klepni na Hotovo', { ms: 4000 });
 }
-
 async function finishShapeEdit() {
   if (!shapeEditFeature) return;
   const { f, layer } = shapeEditFeature;
@@ -292,15 +331,17 @@ async function finishShapeEdit() {
   shapeEditFeature = null;
   const ring = layer.getLatLngs()[0].map((ll) => [ll.lng, ll.lat]);
   ring.push(ring[0]);
-  try {
-    await Store.update('notes', f.id, { geometry: { type: 'Polygon', coordinates: [ring] } });
-    toast('Tvar uložen ✓');
-  } catch {
-    toast('Uložení tvaru selhalo', { error: true });
-  }
+  await Store.update('notes', f.id, { geometry: { type: 'Polygon', coordinates: [ring] } });
+  toast('Tvar uložen ✓');
+}
+function cancelShapeEdit() {
+  if (!shapeEditFeature) return;
+  shapeEditFeature.layer.pm.disable();
+  shapeEditFeature = null;
+  if (btnFinishShape) btnFinishShape.hidden = true;
 }
 
-// ---------- poloha (GPS) ----------
+// ---------- poloha ----------
 function stopLocate() {
   if (map) map.stopLocate();
   locating = false;
@@ -359,7 +400,7 @@ function wireTools() {
     map.pm.enableDraw('Polygon', {
       snappable: false,
       continueDrawing: false,
-      pathOptions: polygonStyle(CATS.observation.color),
+      pathOptions: polygonStyle(CATS.observation.color, getUser()?.name),
       templineStyle: { color: CATS.observation.color, weight: 2 },
       hintlineStyle: { color: CATS.observation.color, weight: 2, dashArray: '5,5' },
     });
@@ -381,12 +422,12 @@ function wireTools() {
   $('#btn-map-menu-close').addEventListener('click', closeOverlay);
   $('#btn-home').addEventListener('click', () => {
     closeOverlay();
-    map.fitBounds(STREAM_BOUNDS);
+    map.fitBounds(perimeter.getBounds());
   });
   $('#btn-point-here').addEventListener('click', () => {
     closeOverlay();
     if (lastPosition) {
-      const temp = L.marker(lastPosition, { icon: pinIcon('observation') }).addTo(map);
+      const temp = L.marker(lastPosition, { icon: pinIcon('observation', getUser()?.name) }).addTo(map);
       map.setView(lastPosition, Math.max(map.getZoom(), 17));
       openNoteForm('point', { type: 'Point', coordinates: [lastPosition.lng, lastPosition.lat] }, temp);
     } else {
@@ -407,18 +448,11 @@ function wireTools() {
     const blob = new Blob([JSON.stringify(gj, null, 2)], { type: 'application/geo+json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'lukavka-body.geojson';
+    a.download = 'rudolticka-body.geojson';
     a.click();
     URL.revokeObjectURL(a.href);
     toast('Body exportovány');
   });
-}
-
-function cancelShapeEdit() {
-  if (!shapeEditFeature) return;
-  shapeEditFeature.layer.pm.disable();
-  shapeEditFeature = null;
-  if (btnFinishShape) btnFinishShape.hidden = true;
 }
 
 export const MapView = {

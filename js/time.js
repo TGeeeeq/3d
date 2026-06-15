@@ -2,15 +2,18 @@
 'use strict';
 import { Store } from './store.js';
 import {
-  $, $$, toast, openSheet, closeOverlay, escapeHtml, fmtDate, fmtHours, confirmSheet, emptyState, getUser,
+  $, $$, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDate, fmtHours, confirmSheet, emptyState, getUser,
 } from './ui.js';
 
 const POINTS_PER_HOUR = 10;
-let activePanel = 'hours';
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+const FILTER_KEY = 'ochr.time.filter';
+let filterMine = false;
+try {
+  filterMine = localStorage.getItem(FILTER_KEY) === 'mine';
+} catch {
+  /* ignore */
 }
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
 function openHoursForm() {
   const sheet = openSheet(`
@@ -19,7 +22,7 @@ function openHoursForm() {
     <div class="field-row">
       <div class="field"><label>Hodin</label><input id="h-hours" type="number" inputmode="decimal" min="0.5" step="0.5" value="2"></div>
     </div>
-    <div class="field"><label>Činnost</label><input id="h-act" type="text" placeholder="např. kosení, výsadba, monitoring" maxlength="120"></div>
+    <div class="field"><label>Činnost</label><input id="h-act" type="text" placeholder="např. sečení pcháče, výsadba, monitoring, kravky" maxlength="120"></div>
     <div class="sheet-buttons">
       <button class="primary" data-save type="button">Uložit</button>
       <button class="secondary" data-cancel type="button">Zrušit</button>
@@ -34,12 +37,8 @@ function openHoursForm() {
       return;
     }
     closeOverlay();
-    try {
-      await Store.add('time', { hours, date, activity });
-      toast('Hodiny zapsány ✓');
-    } catch {
-      toast('Uložení selhalo', { error: true });
-    }
+    await Store.add('time', { hours, date, activity });
+    toast('Hodiny zapsány ✓');
   };
 }
 
@@ -61,12 +60,8 @@ function openRewardForm() {
       return;
     }
     closeOverlay();
-    try {
-      await Store.add('rewards', { title, cost, claimedBy: null, claimedAt: null });
-      toast('Odměna přidána ✓');
-    } catch {
-      toast('Uložení selhalo', { error: true });
-    }
+    await Store.add('rewards', { title, cost, claimedBy: null, claimedAt: null });
+    toast('Odměna přidána ✓');
   };
 }
 
@@ -80,20 +75,21 @@ function renderHours(items) {
 
   const list = $('#hours-list');
   if (!list) return;
-  if (!items.length) {
+  const shown = filterMine ? items.filter((t) => t.author === me) : items;
+  if (!shown.length) {
     list.innerHTML = emptyState('⏱️', 'Zatím žádné zapsané hodiny. Klepni na + a zapiš první.');
     return;
   }
-  list.innerHTML = items
+  list.innerHTML = shown
     .map(
       (t) => `
-    <div class="card">
+    <div class="card" style="border-left:4px solid ${userColor(t.author)}">
       <div class="row between">
-        <h3>${escapeHtml(t.activity || 'Práce v terénu')}</h3>
+        <h3>${escapeHtml(t.activity || 'Práce v terénu')} ${t._pending ? '<span class="pend">⏳</span>' : ''}</h3>
         <span class="num leaf" style="font-size:18px;font-weight:800">${escapeHtml(fmtHours(t.hours))}</span>
       </div>
       <div class="meta">
-        <span class="pill author">${escapeHtml(t.author || '?')}</span>
+        ${authorChip(t.author)}
         <span>${escapeHtml(fmtDate(t.date || t.createdAt))}</span>
         <span class="spacer"></span>
         <button class="btn-ghost" data-del="${t.id}" type="button" style="min-height:32px;padding:0 12px">Smazat</button>
@@ -104,12 +100,8 @@ function renderHours(items) {
   list.querySelectorAll('[data-del]').forEach((b) => {
     b.onclick = async () => {
       if (!(await confirmSheet('Smazat tento záznam hodin?', { okText: 'Smazat', danger: true }))) return;
-      try {
-        await Store.remove('time', b.dataset.del);
-        toast('Smazáno');
-      } catch {
-        toast('Smazání selhalo', { error: true });
-      }
+      await Store.remove('time', b.dataset.del);
+      toast('Smazáno');
     };
   });
 }
@@ -127,12 +119,12 @@ function renderRewards(items) {
       return `
       <div class="card" style="${claimed ? 'opacity:.7' : ''}">
         <div class="row between">
-          <h3>${escapeHtml(r.title)}</h3>
+          <h3>${escapeHtml(r.title)} ${r._pending ? '<span class="pend">⏳</span>' : ''}</h3>
           <span class="pill cat">${escapeHtml(String(r.cost))} b</span>
         </div>
         <div class="meta">
           ${claimed
-            ? `<span>✅ Získal(a): <b>${escapeHtml(r.claimedBy)}</b></span>`
+            ? `<span>✅ Získal(a): ${authorChip(r.claimedBy)}</span>`
             : `<button class="btn-soft" data-claim="${r.id}" type="button" style="min-height:36px;padding:0 14px">Označit jako získané</button>`}
           <span class="spacer"></span>
           <button class="btn-ghost" data-delr="${r.id}" type="button" style="min-height:32px;padding:0 12px">Smazat</button>
@@ -142,37 +134,35 @@ function renderRewards(items) {
     .join('');
   list.querySelectorAll('[data-claim]').forEach((b) => {
     b.onclick = async () => {
-      try {
-        await Store.update('rewards', b.dataset.claim, {
-          claimedBy: getUser()?.name || '?',
-          claimedAt: new Date().toISOString(),
-        });
-        toast('Odměna získána 🎉');
-      } catch {
-        toast('Uložení selhalo', { error: true });
-      }
+      await Store.update('rewards', b.dataset.claim, { claimedBy: getUser()?.name || '?', claimedAt: new Date().toISOString() });
+      toast('Odměna získána 🎉');
     };
   });
   list.querySelectorAll('[data-delr]').forEach((b) => {
     b.onclick = async () => {
       if (!(await confirmSheet('Smazat tuto odměnu?', { okText: 'Smazat', danger: true }))) return;
-      try {
-        await Store.remove('rewards', b.dataset.delr);
-        toast('Smazáno');
-      } catch {
-        toast('Smazání selhalo', { error: true });
-      }
+      await Store.remove('rewards', b.dataset.delr);
+      toast('Smazáno');
     };
   });
 }
 
 function switchPanel(panel) {
-  activePanel = panel;
   $('#panel-hours').hidden = panel !== 'hours';
   $('#panel-rewards').hidden = panel !== 'rewards';
   $('#fab-hours').hidden = panel !== 'hours';
   $('#fab-rewards').hidden = panel !== 'rewards';
-  $$('#view-time .seg button').forEach((b) => b.classList.toggle('active', b.dataset.panel === panel));
+  $$('#view-time .seg-main button').forEach((b) => b.classList.toggle('active', b.dataset.panel === panel));
+}
+function setFilter(mine) {
+  filterMine = mine;
+  try {
+    localStorage.setItem(FILTER_KEY, mine ? 'mine' : 'all');
+  } catch {
+    /* ignore */
+  }
+  $$('#view-time .seg-filter button').forEach((b) => b.classList.toggle('active', (b.dataset.f === 'mine') === mine));
+  renderHours(Store.get('time'));
 }
 
 export const TimeView = {
@@ -184,20 +174,26 @@ export const TimeView = {
         <div class="stat"><div class="num leaf" id="h-total">0 h</div><div class="lbl">Tým celkem</div></div>
         <div class="stat"><div class="num" id="h-mine">0 h</div><div class="lbl">Moje hodiny</div></div>
       </div>
-      <div class="seg">
+      <div class="seg seg-main">
         <button data-panel="hours" class="active" type="button">⏱️ Hodiny</button>
         <button data-panel="rewards" type="button">🏅 Odměny</button>
       </div>
-      <div id="panel-hours"><div id="hours-list"></div></div>
+      <div id="panel-hours">
+        <div class="seg seg-filter">
+          <button data-f="all" class="active" type="button">👥 Vše</button>
+          <button data-f="mine" type="button">🙋 Moje</button>
+        </div>
+        <div id="hours-list"></div>
+      </div>
       <div id="panel-rewards" hidden>
         <div class="stat" style="margin-bottom:12px"><div class="num" id="r-points" style="color:var(--sun);text-shadow:0 1px 0 #c9a800">0</div><div class="lbl">Bodů týmu (10 b / hodina)</div></div>
         <div id="rewards-list"></div>
       </div>
       <button class="fab" id="fab-hours" type="button" aria-label="Zapsat hodiny">+</button>
       <button class="fab" id="fab-rewards" type="button" aria-label="Nová odměna" hidden>+</button>`;
-    $$('#view-time .seg button').forEach((b) =>
-      b.addEventListener('click', () => switchPanel(b.dataset.panel))
-    );
+    $$('#view-time .seg-main button').forEach((b) => b.addEventListener('click', () => switchPanel(b.dataset.panel)));
+    $$('#view-time .seg-filter button').forEach((b) => b.addEventListener('click', () => setFilter(b.dataset.f === 'mine')));
+    $$('#view-time .seg-filter button').forEach((b) => b.classList.toggle('active', (b.dataset.f === 'mine') === filterMine));
     $('#fab-hours').addEventListener('click', openHoursForm);
     $('#fab-rewards').addEventListener('click', openRewardForm);
     Store.subscribe('time', renderHours);

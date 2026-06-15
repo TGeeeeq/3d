@@ -2,14 +2,18 @@
 'use strict';
 import { Store } from './store.js';
 import {
-  $, toast, openSheet, closeOverlay, escapeHtml, fmtDate, fmtKc, confirmSheet, emptyState,
+  $, $$, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDate, fmtKc, confirmSheet, emptyState, getUser,
 } from './ui.js';
 
 const CATS = ['Materiál', 'Doprava', 'Nářadí', 'Dotace', 'Dar', 'Občerstvení', 'Ostatní'];
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+const FILTER_KEY = 'ochr.finance.filter';
+let filterMine = false;
+try {
+  filterMine = localStorage.getItem(FILTER_KEY) === 'mine';
+} catch {
+  /* ignore */
 }
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
 function openForm() {
   const opts = CATS.map((c) => `<option value="${c}">${c}</option>`).join('');
@@ -52,12 +56,8 @@ function openForm() {
       date: sheet.querySelector('#f-date').value || todayISO(),
     };
     closeOverlay();
-    try {
-      await Store.add('finance', data);
-      toast('Uloženo ✓');
-    } catch {
-      toast('Uložení selhalo', { error: true });
-    }
+    await Store.add('finance', data);
+    toast('Uloženo ✓');
   };
 }
 
@@ -74,22 +74,24 @@ function render(items) {
 
   const list = $('#fin-list');
   if (!list) return;
-  if (!items.length) {
+  const me = getUser()?.name;
+  const shown = filterMine ? items.filter((x) => x.author === me) : items;
+  if (!shown.length) {
     list.innerHTML = emptyState('💰', 'Žádné pohyby. Klepni na + a zaznamenej příjem nebo výdaj.');
     return;
   }
-  list.innerHTML = items
+  list.innerHTML = shown
     .map((x) => {
       const isIn = x.type === 'in';
       return `
-      <div class="card">
+      <div class="card" style="border-left:4px solid ${userColor(x.author)}">
         <div class="row between">
-          <h3>${escapeHtml(x.note || x.category)}</h3>
+          <h3>${escapeHtml(x.note || x.category)} ${x._pending ? '<span class="pend">⏳</span>' : ''}</h3>
           <span class="num ${isIn ? 'leaf' : 'danger'}" style="font-size:18px;font-weight:800">${isIn ? '+' : '−'}${escapeHtml(fmtKc(x.amount))}</span>
         </div>
         <div class="meta">
           <span class="pill ${isIn ? 'money-in' : 'money-out'}">${escapeHtml(x.category || (isIn ? 'Příjem' : 'Výdaj'))}</span>
-          <span class="pill author">${escapeHtml(x.author || '?')}</span>
+          ${authorChip(x.author)}
           <span>${escapeHtml(fmtDate(x.date || x.createdAt))}</span>
           <span class="spacer"></span>
           <button class="btn-ghost" data-del="${x.id}" type="button" style="min-height:32px;padding:0 12px">Smazat</button>
@@ -100,14 +102,21 @@ function render(items) {
   list.querySelectorAll('[data-del]').forEach((b) => {
     b.onclick = async () => {
       if (!(await confirmSheet('Smazat tento pohyb?', { okText: 'Smazat', danger: true }))) return;
-      try {
-        await Store.remove('finance', b.dataset.del);
-        toast('Smazáno');
-      } catch {
-        toast('Smazání selhalo', { error: true });
-      }
+      await Store.remove('finance', b.dataset.del);
+      toast('Smazáno');
     };
   });
+}
+
+function setFilter(mine) {
+  filterMine = mine;
+  try {
+    localStorage.setItem(FILTER_KEY, mine ? 'mine' : 'all');
+  } catch {
+    /* ignore */
+  }
+  $$('#view-finance .seg-filter button').forEach((b) => b.classList.toggle('active', (b.dataset.f === 'mine') === mine));
+  render(Store.get('finance'));
 }
 
 export const FinanceView = {
@@ -120,9 +129,15 @@ export const FinanceView = {
         <div class="stat"><div class="num leaf" id="f-in" style="font-size:18px">0 Kč</div><div class="lbl">Příjmy</div></div>
         <div class="stat"><div class="num danger" id="f-out" style="font-size:18px">0 Kč</div><div class="lbl">Výdaje</div></div>
       </div>
+      <div class="seg seg-filter">
+        <button data-f="all" class="active" type="button">👥 Vše</button>
+        <button data-f="mine" type="button">🙋 Moje</button>
+      </div>
       <div class="list-divider">Pohyby</div>
       <div id="fin-list"></div>
       <button class="fab" id="fin-add" type="button" aria-label="Nový pohyb">+</button>`;
+    $$('#view-finance .seg-filter button').forEach((b) => b.addEventListener('click', () => setFilter(b.dataset.f === 'mine')));
+    $$('#view-finance .seg-filter button').forEach((b) => b.classList.toggle('active', (b.dataset.f === 'mine') === filterMine));
     $('#fin-add').addEventListener('click', openForm);
     Store.subscribe('finance', render);
   },

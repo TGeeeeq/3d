@@ -279,3 +279,77 @@ button:disabled { opacity: 0.55; }
 @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
 
 .list-divider { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin: 16px 2px 8px; }
+
+/* ============ VESELÝ PŘÍRODNÍ STYL ============ */
+:root { --display: 'Fredoka', system-ui, sans-serif; }
+.brand, .login-card h1, .view-head h2, .sheet h2, .card h3, .stat .num, .tab .tl, .choice .nm { font-family: var(--display); }
+.login-card h1 { letter-spacing: .3px; }
+
+/* louka s kravkou na přihlášení */
+.login-scene {
+  position: relative; height: 150px; margin: -6px -4px 14px; border-radius: 16px; overflow: hidden;
+  background: linear-gradient(#bfe6f5 0%, #d9f0e4 55%, #cdeccb 56%, #bfe39a 100%);
+}
+.login-scene .sun {
+  position: absolute; top: 16px; right: 22px; width: 34px; height: 34px; border-radius: 50%;
+  background: radial-gradient(circle, #ffe27a 0%, #ffd23f 70%); box-shadow: 0 0 22px 6px #ffe48a99;
+  animation: sun-pulse 4s ease-in-out infinite;
+}
+@keyframes sun-pulse { 0%,100%{ transform: scale(1);} 50%{ transform: scale(1.12);} }
+.login-scene .cloud {
+  position: absolute; height: 14px; border-radius: 14px; background: #ffffffcc;
+  box-shadow: 14px 4px 0 -2px #ffffffcc, -12px 4px 0 -3px #ffffffcc;
+}
+.login-scene .cloud.c1 { top: 26px; left: -40px; width: 34px; animation: drift 16s linear infinite; }
+.login-scene .cloud.c2 { top: 50px; left: -60px; width: 26px; animation: drift 22s linear infinite 3s; }
+@keyframes drift { from { transform: translateX(0);} to { transform: translateX(360px);} }
+.login-scene .meadow {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 46px;
+  background: linear-gradient(#8ec96a, #5fa83f);
+  border-radius: 50% 50% 0 0 / 22px 22px 0 0;
+}
+.login-scene .bfly { position: absolute; top: 70px; left: 30px; font-size: 16px; animation: flutter 9s ease-in-out infinite; }
+@keyframes flutter {
+  0% { transform: translate(0,0) rotate(-6deg);} 25% { transform: translate(70px,-16px) rotate(8deg);}
+  50% { transform: translate(150px,6px) rotate(-4deg);} 75% { transform: translate(220px,-12px) rotate(6deg);}
+  100% { transform: translate(0,0) rotate(-6deg);}
+}
+.cow { position: absolute; bottom: 18px; left: 50%; width: 132px; margin-left: -66px; z-index: 2;
+  animation: cow-walk 11s ease-in-out infinite; transform-origin: bottom center; }
+@keyframes cow-walk { 0%,100%{ transform: translateX(-26px) scaleX(1);} 49%{ transform: translateX(34px) scaleX(1);}
+  50%{ transform: translateX(34px) scaleX(-1);} 99%{ transform: translateX(-26px) scaleX(-1);} }
+.cow .cow-body { animation: cow-bob 1.7s ease-in-out infinite; transform-origin: center bottom; }
+@keyframes cow-bob { 0%,100%{ transform: translateY(0) rotate(-.5deg);} 50%{ transform: translateY(-3px) rotate(.5deg);} }
+.cow .cow-head { animation: graze 5s ease-in-out infinite; transform-origin: 60px 60px; }
+@keyframes graze { 0%,70%,100%{ transform: rotate(0);} 80%,90%{ transform: rotate(7deg) translateY(3px);} }
+.cow .tail { animation: swish 2.3s ease-in-out infinite; transform-origin: 138px 70px; }
+@keyframes swish { 0%,100%{ transform: rotate(-8deg);} 50%{ transform: rotate(14deg);} }
+.cow .fringe { animation: fringe 3.4s ease-in-out infinite; transform-origin: 40px 52px; }
+@keyframes fringe { 0%,100%{ transform: rotate(-2deg);} 50%{ transform: rotate(3deg);} }
+.cow .eyes { animation: blink 4.5s infinite; transform-origin: center; transform-box: fill-box; }
+@keyframes blink { 0%,94%,100%{ transform: scaleY(1);} 97%{ transform: scaleY(.1);} }
+
+/* indikátor čekání na uložení v hlavičce */
+#pending-badge {
+  background: #fff3cd; color: #8a6d00; border-radius: 16px; padding: 5px 10px; font-size: 12px; font-weight: 800; margin-right: 8px;
+}
+#pending-badge.ok { background: #e7f5e9; color: #2e7d32; }
+.pend { color: #b8860b; font-size: 12px; font-weight: 700; }
+
+/* filtr na mapě */
+#map-filter {
+  position: absolute; top: calc(8px + var(--safe-t)); left: 50%; transform: translateX(-50%); z-index: 1000;
+  display: flex; gap: 2px; background: rgba(255,255,255,.94); border-radius: 20px; padding: 3px; box-shadow: 0 2px 8px rgba(0,0,0,.28);
+}
+#map-filter button { border: none; background: none; padding: 6px 13px; border-radius: 18px; font-size: 12.5px; font-weight: 700; color: var(--muted); cursor: pointer; }
+#map-filter button.active { background: var(--green); color: #fff; }
+
+/* drobné radosti */
+.tab.active .ti { animation: pop .3s ease; }
+@keyframes pop { 0%{ transform: scale(.8);} 60%{ transform: scale(1.18) translateY(-1px);} 100%{ transform: scale(1) translateY(-1px);} }
+.fab { transition: transform .12s ease; } .fab:active { transform: scale(.9); }
+.empty .big { animation: float 3s ease-in-out infinite; } @keyframes float { 0%,100%{ transform: translateY(0);} 50%{ transform: translateY(-6px);} }
+
+@media (prefers-reduced-motion: reduce) {
+  .cow, .cow *, .login-scene *, .tab.active .ti, .empty .big { animation: none !important; }
+}

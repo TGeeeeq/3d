@@ -117,10 +117,24 @@ export function fmtDuration(sec) {
   return (h ? h + ':' : '') + String(m).padStart(h ? 2 : 1, '0') + ':' + String(s).padStart(2, '0');
 }
 
-// ----- aktuální uživatel -----
+// ----- aktuální uživatel + barevná identita -----
 let _user = null;
 export function setUser(u) { _user = u; }
 export function getUser() { return _user; }
+
+// Stabilní barva podle jména (max ~5 lidí v týmu, barvy se snadno rozliší).
+const USER_PALETTE = ['#e0533d', '#1e88e5', '#8e24aa', '#f9a825', '#00897b', '#d81b60', '#3949ab', '#7cb342'];
+export function userColor(name) {
+  const s = String(name || '?');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return USER_PALETTE[h % USER_PALETTE.length];
+}
+// HTML „štítek" autora v jeho barvě.
+export function authorChip(name) {
+  const c = userColor(name);
+  return `<span class="pill author" style="background:${c}1f;color:${c}">${escapeHtml(name || '?')}</span>`;
+}
 
 export function emptyState(icon, text) {
   return `<div class="empty"><span class="big">${icon}</span>${escapeHtml(text)}</div>`;

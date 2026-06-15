@@ -2,7 +2,7 @@
 'use strict';
 import { Store } from './store.js';
 import {
-  $, toast, openSheet, closeOverlay, escapeHtml, fmtDate, confirmSheet, emptyState,
+  $, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDate, confirmSheet, emptyState,
 } from './ui.js';
 
 function openForm() {
@@ -32,12 +32,8 @@ function openForm() {
       link: sheet.querySelector('#l-link').value.trim(),
     };
     closeOverlay();
-    try {
-      await Store.add('localities', data);
-      toast('Lokalita uložena ✓');
-    } catch {
-      toast('Uložení selhalo', { error: true });
-    }
+    await Store.add('localities', data);
+    toast('Lokalita uložena ✓');
   };
 }
 
@@ -59,13 +55,13 @@ function render(items) {
     .map((l) => {
       const link = safeLink(l.link);
       return `
-      <div class="card">
-        <h3>${escapeHtml(l.name)}</h3>
+      <div class="card" style="border-left:4px solid ${userColor(l.author)}">
+        <h3>${escapeHtml(l.name)} ${l._pending ? '<span class="pend">⏳</span>' : ''}</h3>
         ${l.place ? `<div class="meta"><span>📍 ${escapeHtml(l.place)}</span>${l.area ? `<span class="pill cat">${escapeHtml(l.area)}</span>` : ''}</div>` : ''}
         ${l.description ? `<div class="body" style="margin-top:8px">${escapeHtml(l.description)}</div>` : ''}
         <div class="meta" style="margin-top:8px">
           ${link ? `<a class="pill cat" href="${escapeHtml(link)}" target="_blank" rel="noopener">🌐 Odkaz</a>` : ''}
-          <span class="pill author">${escapeHtml(l.author || '?')}</span>
+          ${authorChip(l.author)}
           <span>${escapeHtml(fmtDate(l.createdAt))}</span>
           <span class="spacer"></span>
           <button class="btn-ghost" data-del="${l.id}" type="button" style="min-height:32px;padding:0 12px">Smazat</button>

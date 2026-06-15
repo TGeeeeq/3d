@@ -9,6 +9,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.css">
@@ -19,9 +21,65 @@
   <!-- ============ PŘIHLÁŠENÍ ============ -->
   <div id="login-screen">
     <div class="login-card">
-      <div class="login-logo">🌿💧</div>
+      <div class="login-scene" aria-hidden="true">
+        <span class="sun"></span>
+        <span class="cloud c1"></span>
+        <span class="cloud c2"></span>
+        <span class="bfly">🦋</span>
+        <svg class="cow" viewBox="0 0 170 130" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="fur" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#d98545"/><stop offset="1" stop-color="#b5611f"/>
+            </linearGradient>
+          </defs>
+          <g class="cow-body">
+            <!-- ocas -->
+            <g class="tail">
+              <path d="M138 70 q14 8 9 28" fill="none" stroke="#7a4a22" stroke-width="5" stroke-linecap="round"/>
+              <circle cx="147" cy="100" r="6" fill="#3f2412"/>
+            </g>
+            <!-- nohy -->
+            <g fill="#5c3a1d">
+              <rect x="60" y="86" width="11" height="30" rx="5"/>
+              <rect x="86" y="88" width="11" height="28" rx="5"/>
+              <rect x="108" y="86" width="11" height="30" rx="5"/>
+              <rect x="128" y="88" width="11" height="28" rx="5"/>
+            </g>
+            <!-- tělo -->
+            <ellipse cx="100" cy="66" rx="50" ry="33" fill="url(#fur)"/>
+            <!-- chlupaté chmýří dole -->
+            <g fill="#a9571c">
+              <path d="M62 88 l7 12 l7 -12 z"/><path d="M80 92 l7 12 l7 -12 z"/>
+              <path d="M100 93 l7 12 l7 -12 z"/><path d="M120 92 l7 12 l7 -12 z"/>
+            </g>
+            <!-- hlava -->
+            <g class="cow-head">
+              <ellipse cx="44" cy="74" rx="30" ry="27" fill="url(#fur)"/>
+              <!-- uši -->
+              <ellipse cx="22" cy="58" rx="9" ry="6" fill="#9c5018" transform="rotate(-25 22 58)"/>
+              <ellipse cx="60" cy="55" rx="9" ry="6" fill="#9c5018" transform="rotate(20 60 55)"/>
+              <!-- rohy -->
+              <path d="M30 52 q-14 -6 -22 4 q10 0 16 8" fill="#efe2c4" stroke="#cdb98a" stroke-width="1.5"/>
+              <path d="M58 50 q14 -8 24 0 q-11 -1 -18 8" fill="#efe2c4" stroke="#cdb98a" stroke-width="1.5"/>
+              <!-- čenich -->
+              <ellipse cx="40" cy="92" rx="18" ry="12" fill="#ecd9c2"/>
+              <circle cx="34" cy="92" r="2.4" fill="#5c3a1d"/><circle cx="46" cy="92" r="2.4" fill="#5c3a1d"/>
+              <!-- oči -->
+              <g class="eyes"><circle cx="33" cy="74" r="3.4" fill="#2b1a0d"/><circle cx="55" cy="73" r="3.4" fill="#2b1a0d"/></g>
+              <!-- ofina -->
+              <g class="fringe" fill="#a9571c">
+                <path d="M20 54 q4 22 0 30 q-6 -10 -8 -22 z"/>
+                <path d="M30 52 l4 32 l5 -30 z"/>
+                <path d="M42 52 l3 34 l5 -32 z"/>
+                <path d="M54 53 l4 30 l6 -26 z"/>
+              </g>
+            </g>
+          </g>
+        </svg>
+        <span class="meadow"></span>
+      </div>
       <h1>Trosečníci&nbsp;·&nbsp;terén</h1>
-      <p class="login-sub">Terénní aplikace ČSOP&nbsp;Trosečníci<br>Revitalizovaný tok Lukávky u&nbsp;Damníkova</p>
+      <p class="login-sub">Terénní aplikace ČSOP&nbsp;Trosečníci<br>Rudoltička a lokality v&nbsp;okolí Ostrova</p>
       <form id="login-form" autocomplete="off">
         <label>Tvé jméno
           <input id="login-name" type="text" inputmode="text" placeholder="např. Tonda" maxlength="40" required>
@@ -41,7 +99,7 @@
   <!-- ============ APLIKACE ============ -->
   <div id="app" hidden>
     <header id="app-header">
-      <div class="brand"><span class="brand-mark">🌿</span> Trosečníci <span class="brand-loc">Lukávka</span></div>
+      <div class="brand"><span class="brand-mark">🐄</span> Trosečníci <span class="brand-loc">Rudoltička</span></div>
       <button id="user-chip" type="button" aria-label="Uživatel a menu"><span id="user-name">–</span> ⋯</button>
     </header>
 
