@@ -1,211 +1,278 @@
+/* ČSOP Trosečníci – terénní aplikace. Mobile-first, tmavě zelené přírodní téma. */
+
+:root {
+  --green: #1e3a2f;
+  --green-2: #2c5040;
+  --leaf: #43a047;
+  --leaf-soft: #eef4ee;
+  --water: #1e88e5;
+  --sun: #fdd835;
+  --danger: #c62828;
+  --danger-soft: #fdecea;
+  --ink: #1d2421;
+  --muted: #5d6b64;
+  --line: #e2e8e4;
+  --bg: #f4f7f4;
+  --card: #ffffff;
+  --radius: 14px;
+  --header-h: 52px;
+  --tabbar-h: 62px;
+  --safe-b: env(safe-area-inset-bottom);
+  --safe-t: env(safe-area-inset-top);
+}
+
 * { box-sizing: border-box; }
+
+/* [hidden] musí přebít specifické display:grid/flex níže */
+#login-screen[hidden], #app[hidden] { display: none !important; }
 
 html, body {
   margin: 0;
   padding: 0;
   height: 100%;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
   overscroll-behavior: none;
 }
 
-#map {
+button { font-family: inherit; }
+input, textarea, select { font-family: inherit; }
+
+/* ============ PŘIHLÁŠENÍ ============ */
+#login-screen {
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: 5000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: radial-gradient(120% 120% at 50% 0%, #2c5040 0%, #1e3a2f 55%, #142a21 100%);
+  overflow-y: auto;
+}
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--card);
+  border-radius: 20px;
+  padding: 28px 22px calc(22px + var(--safe-b));
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+.login-logo { font-size: 44px; line-height: 1; }
+.login-card h1 { margin: 10px 0 4px; font-size: 22px; color: var(--green); }
+.login-sub { margin: 0 0 18px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+#login-form { display: flex; flex-direction: column; gap: 12px; text-align: left; }
+#login-form label { font-size: 13px; font-weight: 600; color: var(--green); display: flex; flex-direction: column; gap: 6px; }
+#login-form input {
+  font-size: 16px; padding: 13px 14px; border: 1.5px solid var(--line);
+  border-radius: 12px; background: #fafcfa;
+}
+#login-form input:focus { outline: none; border-color: var(--leaf); }
+.login-error { margin: 0; color: var(--danger); font-size: 13.5px; font-weight: 600; text-align: center; }
+.login-foot { margin: 18px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.login-foot a { color: var(--leaf); }
+
+/* ============ TLAČÍTKA ============ */
+.btn-primary, .btn-ghost, .btn-soft {
+  min-height: 50px; border: none; border-radius: 12px; font-size: 15.5px;
+  font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.btn-primary { background: var(--green); color: #fff; }
+.btn-primary:active { background: var(--green-2); }
+.btn-soft { background: var(--leaf-soft); color: var(--green); }
+.btn-ghost { background: transparent; color: var(--green); border: 1.5px solid var(--line); }
+.btn-danger { background: var(--danger-soft); color: var(--danger); }
+button:disabled { opacity: 0.55; }
+
+/* ============ APP SHELL ============ */
+#app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+
+#app-header {
+  height: calc(var(--header-h) + var(--safe-t));
+  padding-top: var(--safe-t);
+  flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  padding-left: 14px; padding-right: 10px;
+  background: var(--green); color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); z-index: 30;
+}
+.brand { font-size: 16px; font-weight: 800; letter-spacing: 0.2px; display: flex; align-items: center; gap: 6px; }
+.brand-mark { font-size: 18px; }
+.brand-loc { font-weight: 600; opacity: 0.7; font-size: 13px; }
+#user-chip {
+  background: rgba(255, 255, 255, 0.16); color: #fff; border: none;
+  border-radius: 20px; padding: 7px 12px; font-size: 13px; font-weight: 700; cursor: pointer;
 }
 
-/* ---------- spodní lišta nástrojů ---------- */
+#views { position: relative; flex: 1 1 auto; overflow: hidden; }
+.view { position: absolute; inset: 0; }
+.view[hidden] { display: none; }
+.view.scrollable { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 14px calc(20px + var(--safe-b)); }
 
-#toolbar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 1000;
-  display: flex;
-  gap: 6px;
-  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.2);
+#map { position: absolute; inset: 0; z-index: 0; }
+
+/* nástroje mapy */
+#map-tools {
+  position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 1000;
+  display: flex; gap: 6px;
 }
-
 .tool-btn {
-  flex: 1;
-  min-height: 48px;
-  border: none;
-  border-radius: 10px;
-  background: #eef2ee;
-  font-size: 15px;
-  font-weight: 600;
-  color: #1e3a2f;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
+  flex: 1; min-height: 46px; border: none; border-radius: 11px;
+  background: rgba(255, 255, 255, 0.96); font-size: 14.5px; font-weight: 700; color: var(--green);
+  cursor: pointer; -webkit-tap-highlight-color: transparent; box-shadow: 0 2px 6px rgba(0,0,0,.25);
+}
+#btn-map-menu { flex: 0 0 52px; }
+.tool-btn.active { background: var(--green); color: #fff; }
+
+/* ============ SPODNÍ NAVIGACE ============ */
+#tabbar {
+  flex: 0 0 auto;
+  height: calc(var(--tabbar-h) + var(--safe-b));
+  padding-bottom: var(--safe-b);
+  display: flex; background: var(--card);
+  border-top: 1px solid var(--line); z-index: 40;
+}
+.tab {
+  flex: 1; border: none; background: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  color: var(--muted); font-size: 11px; font-weight: 600; -webkit-tap-highlight-color: transparent;
+}
+.tab .ti { font-size: 21px; line-height: 1; filter: grayscale(0.4); opacity: 0.7; }
+.tab.active { color: var(--green); }
+.tab.active .ti { filter: none; opacity: 1; transform: translateY(-1px); }
+
+/* ============ KARTY & SEZNAMY ============ */
+.view-head { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 12px; }
+.view-head h2 { margin: 0; font-size: 19px; color: var(--green); }
+.view-head .sub { font-size: 12.5px; color: var(--muted); }
+
+.card {
+  background: var(--card); border-radius: var(--radius); padding: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); margin-bottom: 12px; border: 1px solid var(--line);
+}
+.card h3 { margin: 0 0 8px; font-size: 15px; color: var(--green); }
+.card .meta { font-size: 12px; color: var(--muted); margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.card .body { font-size: 14.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+
+.row { display: flex; align-items: center; gap: 10px; }
+.row.between { justify-content: space-between; }
+.spacer { flex: 1; }
+
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.stat {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 14px; text-align: center;
+}
+.stat .num { font-size: 26px; font-weight: 800; color: var(--green); line-height: 1.1; }
+.stat .num.water { color: var(--water); }
+.stat .num.leaf { color: var(--leaf); }
+.stat .num.danger { color: var(--danger); }
+.stat .lbl { font-size: 11.5px; color: var(--muted); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 20px; font-size: 11.5px; font-weight: 700; }
+.pill.cat { background: var(--leaf-soft); color: var(--green); }
+.pill.author { background: #eef2f7; color: #44566b; }
+.pill.money-in { background: #e7f5e9; color: #2e7d32; }
+.pill.money-out { background: var(--danger-soft); color: var(--danger); }
+
+.empty { text-align: center; color: var(--muted); font-size: 14px; padding: 36px 16px; }
+.empty .big { font-size: 34px; display: block; margin-bottom: 8px; }
+
+.media-audio { width: 100%; margin-top: 8px; }
+.media-img { width: 100%; border-radius: 10px; margin-top: 8px; display: block; border: 1px solid var(--line); }
+
+/* mini segmented control */
+.seg { display: flex; background: var(--leaf-soft); border-radius: 11px; padding: 3px; gap: 3px; margin-bottom: 12px; }
+.seg button { flex: 1; border: none; background: none; padding: 9px; border-radius: 9px; font-weight: 700; font-size: 13px; color: var(--muted); cursor: pointer; }
+.seg button.active { background: var(--card); color: var(--green); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+
+/* ============ FAB ============ */
+.fab {
+  position: absolute; right: 16px; bottom: calc(16px + var(--safe-b)); z-index: 900;
+  width: 56px; height: 56px; border-radius: 50%; border: none; background: var(--green); color: #fff;
+  font-size: 28px; line-height: 56px; box-shadow: 0 4px 14px rgba(0,0,0,.35); cursor: pointer;
 }
 
-.tool-btn.active {
-  background: #1e3a2f;
-  color: #fff;
+/* ============ FORMULÁŘE ============ */
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.field label { font-size: 13px; font-weight: 700; color: var(--green); }
+.field input, .field textarea, .field select {
+  font-size: 16px; padding: 11px 12px; border: 1.5px solid var(--line); border-radius: 11px; background: #fafcfa; width: 100%;
 }
+.field textarea { resize: vertical; min-height: 80px; }
+.field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--leaf); }
+.field-row { display: flex; gap: 10px; }
+.field-row > .field { flex: 1; }
 
-/* ---------- bottom sheety ---------- */
-
+/* ============ SHEETY / BACKDROP / MENU ============ */
 .sheet {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 1200;
-  background: #fff;
-  border-radius: 16px 16px 0 0;
-  padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 4200; background: var(--card);
+  border-radius: 18px 18px 0 0; padding: 6px 16px calc(18px + var(--safe-b));
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.3); max-height: 88vh; overflow-y: auto;
 }
+.sheet[hidden] { display: none; }
+.sheet-handle { width: 42px; height: 4px; border-radius: 2px; background: #d3dbd6; margin: 6px auto 10px; }
+.sheet h2 { margin: 0 0 12px; font-size: 18px; color: var(--green); }
+.sheet-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.sheet-buttons button { flex: 1; min-height: 48px; border: none; border-radius: 11px; font-size: 15px; font-weight: 700; cursor: pointer; background: var(--leaf-soft); color: var(--green); }
+.sheet-buttons .primary { background: var(--green); color: #fff; }
+.sheet-buttons .danger { background: var(--danger-soft); color: var(--danger); }
+.sheet-buttons .secondary { background: #f0f0f0; color: #555; }
 
-.sheet-handle {
-  width: 40px;
-  height: 4px;
-  border-radius: 2px;
-  background: #ccc;
-  margin: 4px auto 8px;
+#backdrop { position: fixed; inset: 0; z-index: 4100; background: rgba(0, 0, 0, 0.38); }
+#backdrop[hidden] { display: none; }
+
+.menu-item {
+  display: block; width: 100%; text-align: left; min-height: 50px; padding: 0 14px; margin-bottom: 8px;
+  border: none; border-radius: 11px; background: var(--leaf-soft); color: var(--green);
+  font-size: 15px; font-weight: 700; cursor: pointer; line-height: 50px; text-decoration: none;
 }
+.menu-item.secondary { background: #f0f0f0; color: #555; text-align: center; }
+.menu-item.danger { background: var(--danger-soft); color: var(--danger); }
 
-.sheet h2 {
-  margin: 0 0 12px;
-  font-size: 17px;
-  color: #1e3a2f;
+/* výběr kategorie (2 volby) */
+.choice-row { display: flex; gap: 10px; margin-bottom: 14px; }
+.choice {
+  flex: 1; border: 2px solid var(--line); border-radius: 13px; background: #fafcfa; padding: 14px 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; min-height: 84px; justify-content: center;
 }
+.choice .ic { font-size: 26px; }
+.choice .nm { font-size: 13.5px; font-weight: 700; color: var(--ink); text-align: center; }
+.choice.selected { border-color: var(--leaf); background: var(--leaf-soft); }
 
-#backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1100;
-  background: rgba(0, 0, 0, 0.3);
-}
-
-/* ---------- barvy ---------- */
-
-#color-row {
-  display: flex;
-  gap: 14px;
-  margin-bottom: 12px;
-}
-
-.color-swatch {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  border: 3px solid transparent;
-  background-color: currentColor;
-  cursor: pointer;
-  padding: 0;
-}
-
+#color-row { display: flex; gap: 14px; margin: 6px 0 14px; }
+.color-swatch { width: 44px; height: 44px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; padding: 0; }
 .color-swatch[data-color="#e53935"] { background: #e53935; }
 .color-swatch[data-color="#1e88e5"] { background: #1e88e5; }
 .color-swatch[data-color="#fdd835"] { background: #fdd835; }
 .color-swatch[data-color="#43a047"] { background: #43a047; }
+.color-swatch.selected { border-color: var(--green); box-shadow: 0 0 0 2px #fff inset; }
 
-.color-swatch.selected {
-  border-color: #1e3a2f;
-  box-shadow: 0 0 0 2px #fff inset;
-}
-
-/* ---------- formulář ---------- */
-
-#note-text {
-  width: 100%;
-  font-size: 16px; /* zabrání zoomu iOS při fokusu */
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 10px;
-  resize: none;
-  margin-bottom: 12px;
-}
-
-.sheet-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.sheet-buttons button,
-.menu-item {
-  min-height: 48px;
-  border: none;
-  border-radius: 10px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.sheet-buttons button {
-  flex: 1;
-  background: #eef2ee;
-  color: #1e3a2f;
-}
-
-.sheet-buttons .primary { background: #1e3a2f; color: #fff; }
-.sheet-buttons .danger  { background: #fdecea; color: #c62828; }
-.sheet-buttons .secondary { background: #f0f0f0; color: #555; }
-
-.menu-item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 0 14px;
-  margin-bottom: 8px;
-  background: #eef2ee;
-  color: #1e3a2f;
-}
-
-.menu-item.secondary { background: #f0f0f0; color: #555; text-align: center; }
-
-/* ---------- toast ---------- */
-
+/* ============ TOAST ============ */
 #toast {
-  position: fixed;
-  top: calc(12px + env(safe-area-inset-top));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1300;
-  background: rgba(30, 58, 47, 0.95);
-  color: #fff;
-  padding: 10px 18px;
-  border-radius: 24px;
-  font-size: 14px;
-  font-weight: 600;
-  max-width: 90vw;
-  text-align: center;
-  pointer-events: none;
+  position: fixed; top: calc(12px + var(--safe-t)); left: 50%; transform: translateX(-50%);
+  z-index: 6000; background: rgba(30, 58, 47, 0.96); color: #fff; padding: 11px 18px;
+  border-radius: 24px; font-size: 14px; font-weight: 600; max-width: 90vw; text-align: center; pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0,0,0,.3);
 }
+#toast[hidden] { display: none; }
+#toast.err { background: rgba(198, 40, 40, 0.97); }
 
-/* ---------- markery ---------- */
+/* ============ MAPOVÉ MARKERY ============ */
+.note-pin { display: block; width: 26px; height: 26px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+  border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
+.note-pin .pin-ic { transform: rotate(45deg); display: block; text-align: center; line-height: 22px; font-size: 13px; }
+.locate-dot { width: 16px; height: 16px; border-radius: 50%; background: var(--water); border: 3px solid #fff; box-shadow: 0 0 6px rgba(0, 0, 0, 0.5); }
 
-.note-pin {
-  display: block;
-  width: 26px;
-  height: 26px;
-  border-radius: 50% 50% 50% 0;
-  transform: rotate(-45deg);
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
-}
+.leaflet-top .leaflet-control { margin-top: calc(8px + var(--safe-t)); }
+.leaflet-touch .leaflet-bar a { width: 38px; height: 38px; line-height: 38px; }
 
-.locate-dot {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #1a73e8;
-  border: 3px solid #fff;
-  box-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
-}
+/* drawing canvas */
+.draw-wrap { position: relative; border: 1.5px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff; touch-action: none; }
+.draw-wrap canvas { display: block; width: 100%; height: auto; touch-action: none; }
+.draw-tools { display: flex; gap: 8px; margin: 8px 0; align-items: center; }
+.rec-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--danger); display: inline-block; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
 
-/* Leaflet ovládání kousek od horního okraje (výřez telefonu) */
-.leaflet-top .leaflet-control { margin-top: calc(10px + env(safe-area-inset-top)); }
-
-.leaflet-touch .leaflet-bar a {
-  width: 40px;
-  height: 40px;
-  line-height: 40px;
-}
+.list-divider { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin: 16px 2px 8px; }

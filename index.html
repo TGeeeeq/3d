@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#1e3a2f">
-  <title>Lukávka – mapa poznámek</title>
+  <meta name="description" content="Terénní aplikace ČSOP Trosečníci – sdílená mapa, trasy, deník, hodiny a finance.">
+  <title>Trosečníci – terén</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -14,51 +15,102 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div id="map"></div>
 
+  <!-- ============ PŘIHLÁŠENÍ ============ -->
+  <div id="login-screen">
+    <div class="login-card">
+      <div class="login-logo">🌿💧</div>
+      <h1>Trosečníci&nbsp;·&nbsp;terén</h1>
+      <p class="login-sub">Terénní aplikace ČSOP&nbsp;Trosečníci<br>Revitalizovaný tok Lukávky u&nbsp;Damníkova</p>
+      <form id="login-form" autocomplete="off">
+        <label>Tvé jméno
+          <input id="login-name" type="text" inputmode="text" placeholder="např. Tonda" maxlength="40" required>
+        </label>
+        <label>Přístupový kód týmu
+          <input id="login-code" type="password" inputmode="text" placeholder="kód od koordinátora" required>
+        </label>
+        <button id="login-btn" class="btn-primary" type="submit">Vstoupit</button>
+        <p id="login-error" class="login-error" hidden></p>
+      </form>
+      <p class="login-foot">Data jsou sdílená v&nbsp;rámci týmu a uložená bezpečně.
+        <a href="https://www.csoptrosecnici.cz" target="_blank" rel="noopener">csoptrosecnici.cz</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- ============ APLIKACE ============ -->
+  <div id="app" hidden>
+    <header id="app-header">
+      <div class="brand"><span class="brand-mark">🌿</span> Trosečníci <span class="brand-loc">Lukávka</span></div>
+      <button id="user-chip" type="button" aria-label="Uživatel a menu"><span id="user-name">–</span> ⋯</button>
+    </header>
+
+    <main id="views">
+      <!-- MAPA -->
+      <section class="view" id="view-map" data-tab="map">
+        <div id="map"></div>
+        <div id="map-tools">
+          <button id="btn-add-point" class="tool-btn" type="button">📍 Bod</button>
+          <button id="btn-add-area" class="tool-btn" type="button">⬠ Plocha</button>
+          <button id="btn-locate" class="tool-btn" type="button">🧭 Poloha</button>
+          <button id="btn-map-menu" class="tool-btn" type="button">☰</button>
+        </div>
+      </section>
+
+      <!-- TRASA -->
+      <section class="view scrollable" id="view-track" data-tab="track" hidden></section>
+
+      <!-- DENÍK -->
+      <section class="view scrollable" id="view-diary" data-tab="diary" hidden></section>
+
+      <!-- HODINY + ODMĚNY -->
+      <section class="view scrollable" id="view-time" data-tab="time" hidden></section>
+
+      <!-- FINANCE -->
+      <section class="view scrollable" id="view-finance" data-tab="finance" hidden></section>
+
+      <!-- LOKALITY -->
+      <section class="view scrollable" id="view-localities" data-tab="localities" hidden></section>
+    </main>
+
+    <nav id="tabbar">
+      <button class="tab" data-tab="map" type="button"><span class="ti">🗺️</span><span class="tl">Mapa</span></button>
+      <button class="tab" data-tab="track" type="button"><span class="ti">🥾</span><span class="tl">Trasa</span></button>
+      <button class="tab" data-tab="diary" type="button"><span class="ti">📓</span><span class="tl">Deník</span></button>
+      <button class="tab" data-tab="time" type="button"><span class="ti">⏱️</span><span class="tl">Hodiny</span></button>
+      <button class="tab" data-tab="finance" type="button"><span class="ti">💰</span><span class="tl">Finance</span></button>
+    </nav>
+  </div>
+
+  <!-- ============ SDÍLENÉ OVERLAYE ============ -->
   <div id="toast" hidden></div>
-
-  <nav id="toolbar">
-    <button id="btn-add-point" class="tool-btn" type="button">📍 Bod</button>
-    <button id="btn-add-area" class="tool-btn" type="button">⬠ Plocha</button>
-    <button id="btn-locate" class="tool-btn" type="button">🧭 Poloha</button>
-    <button id="btn-menu" class="tool-btn" type="button">☰ Menu</button>
-  </nav>
-
-  <div id="menu-panel" class="sheet" hidden>
-    <div class="sheet-handle"></div>
-    <h2>Menu</h2>
-    <button id="btn-point-here" class="menu-item" type="button">📍 Přidat bod na mé poloze</button>
-    <button id="btn-export" class="menu-item" type="button">⬇️ Exportovat poznámky (GeoJSON)</button>
-    <button id="btn-import" class="menu-item" type="button">⬆️ Importovat poznámky</button>
-    <button id="btn-home" class="menu-item" type="button">🏞️ Zpět na celý tok</button>
-    <button id="btn-menu-close" class="menu-item secondary" type="button">Zavřít</button>
-    <input id="import-file" type="file" accept=".geojson,.json,application/geo+json,application/json" hidden>
-  </div>
-
-  <div id="note-sheet" class="sheet" hidden>
-    <div class="sheet-handle"></div>
-    <h2 id="note-sheet-title">Nová poznámka</h2>
-    <div id="color-row">
-      <button class="color-swatch" data-color="#e53935" type="button" aria-label="Červená"></button>
-      <button class="color-swatch" data-color="#1e88e5" type="button" aria-label="Modrá"></button>
-      <button class="color-swatch" data-color="#fdd835" type="button" aria-label="Žlutá"></button>
-      <button class="color-swatch" data-color="#43a047" type="button" aria-label="Zelená"></button>
-    </div>
-    <textarea id="note-text" rows="3" placeholder="Např.: Tady roste hromada bodláku…"></textarea>
-    <div class="sheet-buttons">
-      <button id="btn-save" class="primary" type="button">Uložit</button>
-      <button id="btn-edit-shape" type="button" hidden>Upravit tvar</button>
-      <button id="btn-delete" class="danger" type="button" hidden>Smazat</button>
-      <button id="btn-cancel" class="secondary" type="button">Zrušit</button>
-    </div>
-  </div>
-
   <div id="backdrop" hidden></div>
+  <div id="sheet-host"></div>
+
+  <!-- menu mapy (body/plochy) -->
+  <div id="map-menu-panel" class="sheet" hidden>
+    <div class="sheet-handle"></div>
+    <h2>Mapa</h2>
+    <button id="btn-point-here" class="menu-item" type="button">📍 Přidat bod na mé poloze</button>
+    <button id="btn-home" class="menu-item" type="button">🏞️ Zobrazit celý tok</button>
+    <button id="btn-export" class="menu-item" type="button">⬇️ Exportovat body (GeoJSON)</button>
+    <button id="btn-map-menu-close" class="menu-item secondary" type="button">Zavřít</button>
+  </div>
+
+  <!-- hlavní menu (uživatel) -->
+  <div id="app-menu" class="sheet" hidden>
+    <div class="sheet-handle"></div>
+    <h2 id="app-menu-title">Účet</h2>
+    <button id="btn-localities" class="menu-item" type="button">📍 Lokality ve správě</button>
+    <button id="btn-refresh-all" class="menu-item" type="button">🔄 Načíst nejnovější data</button>
+    <a class="menu-item" href="https://www.csoptrosecnici.cz" target="_blank" rel="noopener">🌐 csoptrosecnici.cz</a>
+    <button id="btn-logout" class="menu-item danger" type="button">Odhlásit se</button>
+    <button id="btn-app-menu-close" class="menu-item secondary" type="button">Zavřít</button>
+  </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.min.js"></script>
-  <script src="js/app.js"></script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

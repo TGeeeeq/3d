@@ -1,0 +1,13 @@
+{
+  "name": "ochranar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Terénní aplikace ČSOP Trosečníci – sdílená mapa, trasy, deník, hodiny a finance.",
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.0.0"
+  }
+}
