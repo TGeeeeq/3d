@@ -8,10 +8,19 @@ import {
 const STREAM_BOUNDS = L.latLngBounds([49.916, 16.52], [49.938, 16.55]);
 const BASEMAP_KEY = 'ochr.basemap.v1';
 
-// Dvě jednoduché kategorie pro rychlý zápis v terénu.
+// Kategorie pro rychlý zápis v terénu (volba u špendlíku i plochy).
 export const CATS = {
   problem: { name: 'Problém / zásah', icon: '🪲', color: '#e53935' },
   observation: { name: 'Pozorování', icon: '🌿', color: '#43a047' },
+  pchac: { name: 'Pcháč', icon: '🌵', color: '#8e24aa' },
+  stovik: { name: 'Šťovík', icon: '🌾', color: '#6d4c41' },
+  kostival: { name: 'Kostival lékařský', icon: '🌸', color: '#5e35b1' },
+  hermanek: { name: 'Heřmánek', icon: '🌼', color: '#fbc02d' },
+  ohrazenka: { name: 'Ohrazenka', icon: '🚧', color: '#fb8c00' },
+  jezirko: { name: 'Jezírko', icon: '💧', color: '#1e88e5' },
+  vysadba: { name: 'Výsadba', icon: '🌱', color: '#2e7d32' },
+  most: { name: 'Most / lávka', icon: '🌉', color: '#455a64' },
+  meandr: { name: 'Meandr', icon: '🌊', color: '#00838f' },
 };
 const catOf = (c) => CATS[c] || CATS.observation;
 
@@ -43,13 +52,13 @@ function initMap() {
   map.fitBounds(STREAM_BOUNDS);
 
   const baseLayers = {
-    'Letecká ČÚZK': L.tileLayer(
+    'Letecká ČÚZK (CZ ortofoto)': L.tileLayer(
       'https://ags.cuzk.gov.cz/arcgis1/rest/services/ORTOFOTO_WM/MapServer/tile/{z}/{y}/{x}',
-      { maxNativeZoom: 20, maxZoom: 21, attribution: '© ČÚZK' }
+      { maxNativeZoom: 20, maxZoom: 21, attribution: '© ČÚZK – ortofoto ČR' }
     ),
-    'Letecká Esri': L.tileLayer(
+    'Letecká Esri (HD)': L.tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { maxNativeZoom: 19, maxZoom: 21, attribution: '© Esri' }
+      { maxNativeZoom: 19, maxZoom: 21, attribution: '© Esri World Imagery' }
     ),
     'Obyčejná mapa': L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -62,7 +71,7 @@ function initMap() {
   } catch {
     /* ignore */
   }
-  (baseLayers[saved] || baseLayers['Letecká ČÚZK']).addTo(map);
+  (baseLayers[saved] || baseLayers['Letecká ČÚZK (CZ ortofoto)']).addTo(map);
   L.control.layers(baseLayers, null, { position: 'topright' }).addTo(map);
   map.on('baselayerchange', (e) => {
     try {
@@ -166,9 +175,10 @@ function noteFormHtml({ title, category = 'observation', note = '', editing = fa
     <button type="button" class="choice ${category === key ? 'selected' : ''}" data-cat="${key}">
       <span class="ic">${CATS[key].icon}</span><span class="nm">${CATS[key].name}</span>
     </button>`;
+  const choices = Object.keys(CATS).map(choice).join('');
   return `
     <h2>${escapeHtml(title)}</h2>
-    <div class="choice-row">${choice('problem')}${choice('observation')}</div>
+    <div class="choice-grid">${choices}</div>
     <div class="field">
       <label>Poznámka</label>
       <textarea id="note-text" rows="3" placeholder="Např.: tady roste hromada bodláku…">${escapeHtml(note)}</textarea>

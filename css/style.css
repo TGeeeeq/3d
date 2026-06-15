@@ -231,14 +231,17 @@ button:disabled { opacity: 0.55; }
 .menu-item.secondary { background: #f0f0f0; color: #555; text-align: center; }
 .menu-item.danger { background: var(--danger-soft); color: var(--danger); }
 
-/* výběr kategorie (2 volby) */
+/* výběr kategorie u špendlíku / plochy */
 .choice-row { display: flex; gap: 10px; margin-bottom: 14px; }
+.choice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
 .choice {
-  flex: 1; border: 2px solid var(--line); border-radius: 13px; background: #fafcfa; padding: 14px 8px;
-  display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; min-height: 84px; justify-content: center;
+  border: 2px solid var(--line); border-radius: 13px; background: #fafcfa; padding: 10px 6px;
+  display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; min-height: 74px; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
 }
-.choice .ic { font-size: 26px; }
-.choice .nm { font-size: 13.5px; font-weight: 700; color: var(--ink); text-align: center; }
+.choice-row .choice { flex: 1; }
+.choice .ic { font-size: 23px; line-height: 1; }
+.choice .nm { font-size: 12px; font-weight: 700; color: var(--ink); text-align: center; line-height: 1.15; }
 .choice.selected { border-color: var(--leaf); background: var(--leaf-soft); }
 
 #color-row { display: flex; gap: 14px; margin: 6px 0 14px; }
