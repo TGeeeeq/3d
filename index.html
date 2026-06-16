@@ -81,11 +81,11 @@
       <h1>Trosečníci&nbsp;·&nbsp;terén</h1>
       <p class="login-sub">Terénní aplikace ČSOP&nbsp;Trosečníci<br>Rudoltička a lokality v&nbsp;okolí Ostrova</p>
       <form id="login-form" autocomplete="off">
-        <label>Tvé jméno
-          <input id="login-name" type="text" inputmode="text" placeholder="např. Tonda" maxlength="40" required>
+        <label>Přístupové heslo
+          <input id="login-code" type="password" inputmode="text" placeholder="tvé osobní heslo" required>
         </label>
-        <label>Přístupový kód týmu
-          <input id="login-code" type="password" inputmode="text" placeholder="kód od koordinátora" required>
+        <label id="login-name-wrap" hidden>Tvé jméno
+          <input id="login-name" type="text" inputmode="text" placeholder="např. Tonda" maxlength="40">
         </label>
         <button id="login-btn" class="btn-primary" type="submit">Vstoupit</button>
         <p id="login-error" class="login-error" hidden></p>

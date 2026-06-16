@@ -30,7 +30,7 @@ export const Api = {
     return d.user;
   },
   async login(code, name) {
-    const d = await req('/api/login', { json: { code, name } });
+    const d = await req('/api/login', { json: name ? { code, name } : { code } });
     return d.user;
   },
   async logout() {

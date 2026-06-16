@@ -94,38 +94,46 @@ function showLogin() {
 function wireLogin() {
   const form = $('#login-form');
   const errEl = $('#login-error');
+  const nameWrap = $('#login-name-wrap');
+  const nameInput = $('#login-name');
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errEl.hidden = true;
-    const name = $('#login-name').value.trim();
     const code = $('#login-code').value;
+    const name = nameWrap.hidden ? '' : nameInput.value.trim();
     const btn = $('#login-btn');
     btn.disabled = true;
     btn.textContent = 'Přihlašuji…';
     try {
       const user = await Api.login(code, name);
       try {
-        localStorage.setItem('ochr.name', name);
+        if (user && user.name) localStorage.setItem('ochr.name', user.name);
       } catch {
         /* ignore */
       }
       enterApp(user);
     } catch (err) {
-      errEl.textContent =
-        err.message === 'bad_code' ? 'Neplatný přístupový kód.' : 'Přihlášení se nezdařilo. Zkus to znovu.';
+      if (err.message === 'name_required') {
+        // záložní týmový kód – appka ještě potřebuje jméno
+        nameWrap.hidden = false;
+        try {
+          const saved = localStorage.getItem('ochr.name');
+          if (saved && !nameInput.value) nameInput.value = saved;
+        } catch {
+          /* ignore */
+        }
+        nameInput.focus();
+        errEl.textContent = 'Týmový kód: napiš ještě své jméno a potvrď.';
+      } else {
+        errEl.textContent =
+          err.message === 'bad_code' ? 'Neplatné heslo.' : 'Přihlášení se nezdařilo. Zkus to znovu.';
+      }
       errEl.hidden = false;
     } finally {
       btn.disabled = false;
       btn.textContent = 'Vstoupit';
     }
   });
-  // předvyplnit jméno z minula
-  try {
-    const saved = localStorage.getItem('ochr.name');
-    if (saved) $('#login-name').value = saved;
-  } catch {
-    /* ignore */
-  }
 }
 
 function wireTabs() {

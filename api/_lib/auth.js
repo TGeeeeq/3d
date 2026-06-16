@@ -15,6 +15,32 @@ export function safeEqual(a, b) {
   return crypto.timingSafeEqual(ha, hb);
 }
 
+// Pojmenované profily: env TEAM_MEMBERS="Jméno:heslo,Jméno2:heslo2".
+// Každý profil = vlastní heslo; heslo jednoznačně určuje, kdo se přihlásil.
+export function getMembers() {
+  return (process.env.TEAM_MEMBERS || '')
+    .split(',')
+    .map((pair) => pair.trim())
+    .filter(Boolean)
+    .map((pair) => {
+      const i = pair.indexOf(':');
+      if (i < 1) return null;
+      return { name: pair.slice(0, i).trim(), code: pair.slice(i + 1).trim() };
+    })
+    .filter((m) => m && m.name && m.code);
+}
+
+// Vrátí profil odpovídající heslu, nebo null. Projde všechny (bez předčasného
+// návratu), aby čas odpovědi neprozrazoval, který profil sedí.
+export function findMemberByCode(code) {
+  if (!code) return null;
+  let found = null;
+  for (const m of getMembers()) {
+    if (safeEqual(code, m.code)) found = m;
+  }
+  return found ? { name: found.name } : null;
+}
+
 export function sign(payloadObj) {
   const payload = b64url(JSON.stringify(payloadObj));
   const sig = crypto.createHmac('sha256', SECRET).update(payload).digest('base64url');

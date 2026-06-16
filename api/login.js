@@ -1,4 +1,4 @@
-import { setSessionCookie, safeEqual } from './_lib/auth.js';
+import { setSessionCookie, safeEqual, findMemberByCode, getMembers } from './_lib/auth.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -8,22 +8,37 @@ export default async function handler(req, res) {
   const body = req.body || {};
   const code = (body.code || '').toString();
   const name = (body.name || '').toString().trim().slice(0, 40);
-  const expected = process.env.TEAM_ACCESS_CODE || '';
+  const teamCode = process.env.TEAM_ACCESS_CODE || '';
 
-  if (!expected) {
+  if (!getMembers().length && !teamCode) {
     res.status(500).json({ error: 'server_not_configured' });
     return;
   }
-  if (!code || !safeEqual(code, expected)) {
-    // malá prodleva ztěžuje hádání kódu
-    await new Promise((r) => setTimeout(r, 400));
+  if (!code) {
     res.status(401).json({ error: 'bad_code' });
     return;
   }
-  if (!name) {
-    res.status(400).json({ error: 'name_required' });
+
+  // 1) Pojmenovaný profil – heslo samo určí, kdo se přihlásil.
+  const member = findMemberByCode(code);
+  if (member) {
+    setSessionCookie(res, { u: member.name, iat: Date.now() }, req);
+    res.status(200).json({ ok: true, user: { name: member.name } });
     return;
   }
-  setSessionCookie(res, { u: name, iat: Date.now() }, req);
-  res.status(200).json({ ok: true, user: { name } });
+
+  // 2) Záložní sdílený týmový kód – kdo ho zná, přihlásí se a napíše si jméno.
+  if (teamCode && safeEqual(code, teamCode)) {
+    if (!name) {
+      res.status(400).json({ error: 'name_required' });
+      return;
+    }
+    setSessionCookie(res, { u: name, iat: Date.now() }, req);
+    res.status(200).json({ ok: true, user: { name } });
+    return;
+  }
+
+  // malá prodleva ztěžuje hádání hesla
+  await new Promise((r) => setTimeout(r, 400));
+  res.status(401).json({ error: 'bad_code' });
 }
