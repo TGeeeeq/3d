@@ -1,9 +1,10 @@
-// Lokality ve správě – seznam míst, o která se tým stará (připraveno k rozšíření).
+// Lokality ve správě – oficiální katalog (ÚSES Karel Málek) + ručně přidané lokality.
 'use strict';
 import { Store } from './store.js';
 import {
-  $, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDate, confirmSheet, emptyState,
+  $, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDate, confirmSheet,
 } from './ui.js';
+import { LOCALITIES, localitiesByType } from './localities-data.js';
 
 function openForm() {
   const sheet = openSheet(`
@@ -41,20 +42,44 @@ function safeLink(url) {
   return /^https?:\/\//i.test(url) ? url : '';
 }
 
+// Oficiální katalog spravovaných lokalit (statický, jen ke čtení).
+function catalogHtml() {
+  return localitiesByType()
+    .map(
+      (g) => `
+      <div class="list-divider">${g.meta.icon} ${g.meta.label} · ${g.items.length}</div>
+      ${g.items
+        .map(
+          (l) => `
+        <div class="card" style="border-left:4px solid var(--leaf)">
+          <h3>${escapeHtml(l.name)}</h3>
+          ${l.area ? `<div class="meta"><span class="pill cat">${escapeHtml(l.area)}</span></div>` : ''}
+          <div class="body" style="margin-top:6px">${escapeHtml(l.desc)}</div>
+        </div>`
+        )
+        .join('')}`
+    )
+    .join('');
+}
+
+// Ručně přidané lokality (mimo oficiální seznam).
 function render(items) {
-  if ($('#l-count')) $('#l-count').textContent = items.length;
+  const sub = $('#l-sub');
+  if (sub) sub.textContent = `${LOCALITIES.length} spravovaných · ${items.length} vlastních`;
   const list = $('#loc-list');
   if (!list) return;
   if (!items.length) {
     list.innerHTML =
-      emptyState('📍', 'Zatím tu nejsou žádné lokality.') +
-      `<p class="login-foot">Sem budeme postupně přidávat všechna místa, která má tým ve správě – s rozlohou, popisem a odkazy. Klepni na + a založ první.</p>`;
+      `<div class="list-divider" style="margin-top:18px">➕ Vlastní lokality</div>` +
+      `<p class="login-foot" style="text-align:left">Tady přidáš další místo mimo seznam výše – klepni na +.</p>`;
     return;
   }
-  list.innerHTML = items
-    .map((l) => {
-      const link = safeLink(l.link);
-      return `
+  list.innerHTML =
+    `<div class="list-divider" style="margin-top:18px">➕ Vlastní lokality · ${items.length}</div>` +
+    items
+      .map((l) => {
+        const link = safeLink(l.link);
+        return `
       <div class="card" style="border-left:4px solid ${userColor(l.author)}">
         <h3>${escapeHtml(l.name)} ${l._pending ? '<span class="pend">⏳</span>' : ''}</h3>
         ${l.place ? `<div class="meta"><span>📍 ${escapeHtml(l.place)}</span>${l.area ? `<span class="pill cat">${escapeHtml(l.area)}</span>` : ''}</div>` : ''}
@@ -67,8 +92,8 @@ function render(items) {
           <button class="btn-ghost" data-del="${l.id}" type="button" style="min-height:32px;padding:0 12px">Smazat</button>
         </div>
       </div>`;
-    })
-    .join('');
+      })
+      .join('');
   list.querySelectorAll('[data-del]').forEach((b) => {
     b.onclick = async () => {
       if (!(await confirmSheet('Smazat tuto lokalitu?', { okText: 'Smazat', danger: true }))) return;
@@ -86,9 +111,13 @@ export const LocalitiesView = {
   collections: ['localities'],
   mount(viewEl) {
     viewEl.innerHTML = `
-      <div class="view-head"><div><h2>Lokality ve správě</h2><div class="sub"><span id="l-count">0</span> míst</div></div></div>
+      <div class="view-head"><div><h2>Lokality ve správě</h2><div class="sub" id="l-sub">${LOCALITIES.length} spravovaných</div></div></div>
+      <div class="list-divider" style="margin-top:6px">🗺️ Spravované lokality ČSOP</div>
+      <p class="login-foot" style="text-align:left;margin:0 2px 6px">Místa ze studie ÚSES Karla Málka. Při zápisu do mapy je vyber v poli „Lokalita".</p>
+      <div id="loc-official"></div>
       <div id="loc-list"></div>
       <button class="fab" id="loc-add" type="button" aria-label="Nová lokalita">+</button>`;
+    $('#loc-official').innerHTML = catalogHtml();
     $('#loc-add').addEventListener('click', openForm);
     Store.subscribe('localities', render);
   },

@@ -5,6 +5,7 @@ import { Store } from './store.js';
 import {
   $, toast, openSheet, openOverlay, closeOverlay, escapeHtml, fmtDateTime, confirmSheet, getUser, userColor,
 } from './ui.js';
+import { localityOptionsHtml, localityName } from './localities-data.js';
 
 // Ostrov u Lanškrouna – střed oblasti, kde tým pečuje o lokality.
 const OSTROV = [49.930273, 16.540589];
@@ -226,7 +227,7 @@ function onPolygonCreate(e) {
 }
 
 // ---------- formulář ----------
-function noteFormHtml({ title, category = 'observation', note = '', editing = false }) {
+function noteFormHtml({ title, category = 'observation', note = '', locality = '', editing = false }) {
   const choice = (key) => `
     <button type="button" class="choice ${category === key ? 'selected' : ''}" data-cat="${key}">
       <span class="ic">${CATS[key].icon}</span><span class="nm">${CATS[key].name}</span>
@@ -235,6 +236,10 @@ function noteFormHtml({ title, category = 'observation', note = '', editing = fa
   return `
     <h2>${escapeHtml(title)}</h2>
     <div class="choice-grid">${choices}</div>
+    <div class="field">
+      <label>Lokalita</label>
+      <select id="note-locality">${localityOptionsHtml(locality)}</select>
+    </div>
     <div class="field">
       <label>Poznámka</label>
       <textarea id="note-text" rows="3" placeholder="Např.: tady roste hromada pcháče…">${escapeHtml(note)}</textarea>
@@ -272,21 +277,22 @@ function openNoteForm(kind, geometry, tempLayer) {
   sheet.querySelector('[data-save]').onclick = async () => {
     const category = getCat();
     const note = sheet.querySelector('#note-text').value.trim();
+    const locality = sheet.querySelector('#note-locality').value;
     cleanup();
     closeOverlay();
-    await Store.add('notes', { kind, geometry, category, color: catOf(category).color, note });
+    await Store.add('notes', { kind, geometry, category, color: catOf(category).color, note, locality });
     toast('Uloženo ✓');
   };
 }
 
 function openNoteView(f) {
   const sheet = openSheet(
-    noteFormHtml({ title: 'Poznámka', category: f.category, note: f.note, editing: true })
+    noteFormHtml({ title: 'Poznámka', category: f.category, note: f.note, locality: f.locality, editing: true })
   );
   const meta = document.createElement('p');
   meta.className = 'login-foot';
   meta.style.textAlign = 'left';
-  meta.innerHTML = `Vložil(a): <b style="color:${userColor(f.author)}">${escapeHtml(f.author || '?')}</b> · ${escapeHtml(fmtDateTime(f.createdAt))}${f._pending ? ' · ⏳ čeká na odeslání' : ''}`;
+  meta.innerHTML = `Vložil(a): <b style="color:${userColor(f.author)}">${escapeHtml(f.author || '?')}</b> · ${escapeHtml(fmtDateTime(f.createdAt))}${f.locality ? ` · 📍 ${escapeHtml(localityName(f.locality))}` : ''}${f._pending ? ' · ⏳ čeká na odeslání' : ''}`;
   sheet.appendChild(meta);
   const getCat = bindChoice(sheet);
 
@@ -294,8 +300,9 @@ function openNoteView(f) {
   sheet.querySelector('[data-save]').onclick = async () => {
     const category = getCat();
     const note = sheet.querySelector('#note-text').value.trim();
+    const locality = sheet.querySelector('#note-locality').value;
     closeOverlay();
-    await Store.update('notes', f.id, { category, color: catOf(category).color, note });
+    await Store.update('notes', f.id, { category, color: catOf(category).color, note, locality });
     toast('Uloženo ✓');
   };
   const delBtn = sheet.querySelector('[data-del]');
@@ -441,7 +448,7 @@ function wireTools() {
       type: 'FeatureCollection',
       features: items.map((f) => ({
         type: 'Feature',
-        properties: { category: f.category, note: f.note, author: f.author, createdAt: f.createdAt },
+        properties: { category: f.category, locality: localityName(f.locality), note: f.note, author: f.author, createdAt: f.createdAt },
         geometry: f.geometry,
       })),
     };

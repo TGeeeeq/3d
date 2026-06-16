@@ -23,7 +23,9 @@ Nahrávaná trasa se průběžně zálohuje a přežije i zavření appky.
 - **⏱️ Hodiny & odměny** – výkaz **dobrovolnických hodin** (důležité pro reporting ČSOP) a motivační
   **body** za odpracovaný čas + nástěnka odměn.
 - **💰 Finance** – jednoduchý správce **příjmů a výdajů** týmu se zůstatkem a kategoriemi.
-- **📍 Lokality ve správě** – seznam spravovaných míst s rozlohou, popisem a odkazy (připraveno k rozšíření).
+- **📍 Lokality ve správě** – vestavěný katalog **spravovaných lokalit ČSOP** (ze studie ÚSES Karla Málka –
+  rezervace, biocentra, biokoridory a VKP v okolí Ostrova) plus možnost ručně přidat vlastní místa. Každý
+  zápis na mapě lze označit **výběrem lokality**, ke které patří.
 
 Aplikace je **PWA** – na telefonu ji přes „Přidat na plochu“ používáš jako běžnou appku přes celou
 obrazovku a app shell funguje i offline.
