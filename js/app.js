@@ -140,6 +140,12 @@ function wireTabs() {
   document.querySelectorAll('#tabbar .tab').forEach((b) =>
     b.addEventListener('click', () => showTab(b.dataset.tab))
   );
+  // Ze seznamu Lokality: „Zakreslit / Na mapě" – přepni na mapu a zaměř/kresli území.
+  window.addEventListener('ochr:draw-area', (e) => {
+    const id = e.detail && e.detail.id;
+    showTab('map');
+    setTimeout(() => MapView.focusArea?.(id), 180);
+  });
 }
 
 function wireMenus() {
@@ -153,7 +159,7 @@ function wireMenus() {
     closeOverlay();
     toast('Načítám data…');
     await Promise.all(
-      ['notes', 'tracks', 'diary', 'time', 'finance', 'rewards', 'localities'].map((c) =>
+      ['notes', 'tracks', 'diary', 'time', 'finance', 'rewards', 'localities', 'areas'].map((c) =>
         Store.refresh(c).catch(() => {})
       )
     );

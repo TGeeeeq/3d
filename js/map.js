@@ -6,6 +6,7 @@ import {
   $, toast, openSheet, openOverlay, closeOverlay, escapeHtml, fmtDateTime, confirmSheet, getUser, userColor,
 } from './ui.js';
 import { localityOptionsHtml, localityName } from './localities-data.js';
+import { AREA_TYPES, AREA_TYPE_ORDER, areaType, REFERENCE_ZCHU, importProtectedAreas } from './protected-areas-data.js';
 
 // Ostrov u Lanškrouna – střed oblasti, kde tým pečuje o lokality.
 const OSTROV = [49.930273, 16.540589];
@@ -32,9 +33,13 @@ const catOf = (c) => CATS[c] || CATS.observation;
 
 let map = null;
 let notesLayer = null;
+let areasLayer = null; // editovatelná chráněná území (kolekce areas)
+let refLayer = null; // okolní ZCHÚ – jen reference (bundlovaná data)
 let perimeter = null;
 const rendered = new Map(); // id -> { layer, sig }
+const renderedAreas = new Map(); // id -> { layer, sig }
 let addPointMode = false;
+let drawForAreaId = null; // když kreslíme tvar pro konkrétní území ze seznamu
 let shapeEditFeature = null;
 let locating = false;
 let lastPosition = null;
@@ -91,7 +96,18 @@ function initMap() {
     /* ignore */
   }
   (baseLayers[saved] || baseLayers['Letecká ČÚZK (CZ ortofoto)']).addTo(map);
-  L.control.layers(baseLayers, null, { position: 'topright' }).addTo(map);
+
+  // Vrstvy chráněných území: naše (editovatelná) zapnutá, okolní reference vypnutá.
+  notesLayer = L.layerGroup().addTo(map);
+  areasLayer = L.layerGroup().addTo(map);
+  refLayer = buildReferenceLayer();
+  L.control
+    .layers(
+      baseLayers,
+      { '🛡️ Naše chráněná území': areasLayer, '📚 Okolní ZCHÚ (reference)': refLayer },
+      { position: 'topright', collapsed: true }
+    )
+    .addTo(map);
   map.on('baselayerchange', (e) => {
     try {
       localStorage.setItem(BASEMAP_KEY, e.name);
@@ -109,8 +125,6 @@ function initMap() {
     fill: false,
     interactive: false,
   }).addTo(map);
-
-  notesLayer = L.layerGroup().addTo(map);
 
   btnFinishShape = document.createElement('button');
   btnFinishShape.type = 'button';
@@ -204,6 +218,155 @@ function render(items) {
   }
 }
 
+// ---------- chráněná území (editovatelná vrstva + reference) ----------
+// GeoJSON [lng,lat] -> Leaflet [lat,lng] pro Polygon i MultiPolygon.
+function geoToLatLngs(geometry) {
+  if (!geometry) return null;
+  if (geometry.type === 'Polygon') {
+    return geometry.coordinates.map((ring) => ring.map(([lng, lat]) => [lat, lng]));
+  }
+  if (geometry.type === 'MultiPolygon') {
+    return geometry.coordinates.map((poly) => poly.map((ring) => ring.map(([lng, lat]) => [lat, lng])));
+  }
+  return null;
+}
+
+function buildReferenceLayer() {
+  const grp = L.layerGroup();
+  for (const a of REFERENCE_ZCHU) {
+    const latlngs = geoToLatLngs(a.geometry);
+    if (!latlngs) continue;
+    const poly = L.polygon(latlngs, {
+      color: '#5b6b63', weight: 1, fillColor: '#5b6b63', fillOpacity: 0.06, dashArray: '4,4', interactive: true,
+    });
+    const link = a.usopUrl ? `<br><a href="${a.usopUrl}" target="_blank" rel="noopener">Záznam v ÚSOP →</a>` : '';
+    poly.bindPopup(
+      `<b>${escapeHtml(a.kat ? a.kat + ' ' : '')}${escapeHtml(a.name)}</b>` +
+      `${a.areaHa ? `<br>${a.areaHa} ha` : ''}<br><span style="color:#667">Reference (AOPK ČR)</span>${link}`
+    );
+    grp.addLayer(poly);
+  }
+  return grp;
+}
+
+const areaSig = (a) => `${a.updatedAt || a.createdAt}|${a.type}|${a.name}|${a.geometry ? 'g' : '0'}|${a._pending ? 1 : 0}`;
+
+function buildAreaLayer(a) {
+  const latlngs = geoToLatLngs(a.geometry);
+  if (!latlngs) return null; // bez zákresu se na mapě nezobrazuje (je v seznamu)
+  const t = areaType(a.type);
+  const layer = L.polygon(latlngs, {
+    color: t.color, weight: a.source === 'aopk' ? 3 : 2,
+    fillColor: t.color, fillOpacity: 0.18,
+    dashArray: a.source === 'malek' ? '6,5' : null,
+  });
+  layer.on('click', (e) => {
+    L.DomEvent.stop(e);
+    if (addPointMode || shapeEditFeature || drawForAreaId) return;
+    openAreaView(a);
+  });
+  layer.addTo(areasLayer);
+  return layer;
+}
+
+function renderAreas(items) {
+  if (!map || !areasLayer) return;
+  const seen = new Set();
+  for (const a of items) {
+    seen.add(a.id);
+    const sig = areaSig(a);
+    const existing = renderedAreas.get(a.id);
+    if (existing && existing.sig === sig) continue;
+    if (existing) areasLayer.removeLayer(existing.layer);
+    const layer = buildAreaLayer(a);
+    if (layer) renderedAreas.set(a.id, { layer, sig });
+    else renderedAreas.delete(a.id);
+  }
+  for (const [id, r] of renderedAreas) {
+    if (!seen.has(id)) {
+      areasLayer.removeLayer(r.layer);
+      renderedAreas.delete(id);
+    }
+  }
+}
+
+function areaFormHtml(a) {
+  const choices = AREA_TYPE_ORDER.map((key) => `
+    <button type="button" class="choice ${a.type === key ? 'selected' : ''}" data-cat="${key}">
+      <span class="ic">${AREA_TYPES[key].icon}</span><span class="nm">${AREA_TYPES[key].label}</span>
+    </button>`).join('');
+  const official = a.source === 'aopk'
+    ? `<p class="login-foot" style="text-align:left;margin:2px 0 8px">🛡️ Oficiální hranice AOPK ČR (ÚSOP).${a.usopUrl ? ` <a href="${escapeHtml(a.usopUrl)}" target="_blank" rel="noopener">Záznam →</a>` : ''}</p>`
+    : '';
+  return `
+    <h2>${escapeHtml(a.name || 'Chráněné území')}</h2>
+    ${official}
+    <div class="choice-grid">${choices}</div>
+    <div class="field"><label>Název</label><input id="a-name" type="text" maxlength="120" value="${escapeHtml(a.name || '')}"></div>
+    <div class="field"><label>Rozloha</label><input id="a-area" type="text" maxlength="40" placeholder="např. 23 ha" value="${escapeHtml(a.areaText || '')}"></div>
+    <div class="field"><label>Popis</label><textarea id="a-desc" rows="3" maxlength="600">${escapeHtml(a.desc || '')}</textarea></div>
+    <div class="sheet-buttons">
+      <button class="primary" data-save type="button">Uložit</button>
+      <button data-shape type="button">${a.geometry ? 'Upravit tvar' : '🗺️ Zakreslit na mapě'}</button>
+      <button class="danger" data-del type="button">Smazat</button>
+      <button class="secondary" data-cancel type="button">Zrušit</button>
+    </div>`;
+}
+
+function openAreaView(a) {
+  const sheet = openSheet(areaFormHtml(a));
+  let type = a.type;
+  sheet.querySelectorAll('.choice').forEach((b) =>
+    b.addEventListener('click', () => {
+      sheet.querySelectorAll('.choice').forEach((x) => x.classList.remove('selected'));
+      b.classList.add('selected');
+      type = b.dataset.cat;
+    })
+  );
+  sheet.querySelector('[data-cancel]').onclick = closeOverlay;
+  sheet.querySelector('[data-save]').onclick = async () => {
+    const name = sheet.querySelector('#a-name').value.trim();
+    if (!name) {
+      toast('Zadej název');
+      return;
+    }
+    closeOverlay();
+    await Store.update('areas', a.id, {
+      name, type,
+      areaText: sheet.querySelector('#a-area').value.trim(),
+      desc: sheet.querySelector('#a-desc').value.trim(),
+    });
+    toast('Uloženo ✓');
+  };
+  sheet.querySelector('[data-del]').onclick = async () => {
+    closeOverlay();
+    if (!(await confirmSheet(`Smazat „${a.name}" z vrstvy chráněných území?`, { okText: 'Smazat', danger: true }))) return;
+    await Store.remove('areas', a.id);
+    toast('Smazáno');
+  };
+  sheet.querySelector('[data-shape]').onclick = () => {
+    closeOverlay();
+    if (a.geometry) startShapeEdit(a, 'areas');
+    else startDrawArea(a.id);
+  };
+}
+
+// Spustí kreslení tvaru pro dané území (volá se i ze záložky Lokality přes událost).
+function startDrawArea(id) {
+  cancelShapeEdit();
+  setAddPointMode(false);
+  drawForAreaId = id;
+  if (!map.hasLayer(areasLayer)) areasLayer.addTo(map); // ať je vrstva vidět
+  toast('Obtáhni hranici území klepáním, ukonči u prvního bodu', { ms: 4500 });
+  map.pm.enableDraw('Polygon', {
+    snappable: false,
+    continueDrawing: false,
+    pathOptions: polygonStyle(AREA_TYPES.zchu.color, getUser()?.name),
+    templineStyle: { color: AREA_TYPES.zchu.color, weight: 2 },
+    hintlineStyle: { color: AREA_TYPES.zchu.color, weight: 2, dashArray: '5,5' },
+  });
+}
+
 // ---------- přidání bodu / plochy ----------
 function setAddPointMode(on) {
   addPointMode = on;
@@ -223,6 +386,15 @@ function onPolygonCreate(e) {
   map.pm.disableDraw();
   const ring = e.layer.getLatLngs()[0].map((ll) => [ll.lng, ll.lat]);
   ring.push(ring[0]);
+  // Kreslíme tvar pro konkrétní chráněné území (ze seznamu „Zakreslit")?
+  if (drawForAreaId) {
+    const id = drawForAreaId;
+    drawForAreaId = null;
+    map.removeLayer(e.layer);
+    Store.update('areas', id, { geometry: { type: 'Polygon', coordinates: [ring] } });
+    toast('Zákres uložen ✓');
+    return;
+  }
   openNoteForm('polygon', { type: 'Polygon', coordinates: [ring] }, e.layer);
 }
 
@@ -321,24 +493,24 @@ function openNoteView(f) {
 }
 
 // ---------- úprava tvaru ----------
-function startShapeEdit(f) {
-  const r = rendered.get(f.id);
+function startShapeEdit(f, collection = 'notes') {
+  const r = (collection === 'areas' ? renderedAreas : rendered).get(f.id);
   if (!r) return;
   closeOverlay();
-  shapeEditFeature = { f, layer: r.layer };
+  shapeEditFeature = { f, layer: r.layer, collection };
   r.layer.pm.enable({ allowSelfIntersection: false });
   btnFinishShape.hidden = false;
   toast('Tahej za body a uprav tvar, pak klepni na Hotovo', { ms: 4000 });
 }
 async function finishShapeEdit() {
   if (!shapeEditFeature) return;
-  const { f, layer } = shapeEditFeature;
+  const { f, layer, collection } = shapeEditFeature;
   layer.pm.disable();
   btnFinishShape.hidden = true;
   shapeEditFeature = null;
   const ring = layer.getLatLngs()[0].map((ll) => [ll.lng, ll.lat]);
   ring.push(ring[0]);
-  await Store.update('notes', f.id, { geometry: { type: 'Polygon', coordinates: [ring] } });
+  await Store.update(collection, f.id, { geometry: { type: 'Polygon', coordinates: [ring] } });
   toast('Tvar uložen ✓');
 }
 function cancelShapeEdit() {
@@ -385,6 +557,7 @@ function onLocationFound(e) {
 function wireTools() {
   $('#btn-add-point').addEventListener('click', () => {
     cancelShapeEdit();
+    drawForAreaId = null;
     map.pm.disableDraw();
     if (addPointMode) {
       setAddPointMode(false);
@@ -396,6 +569,7 @@ function wireTools() {
 
   $('#btn-add-area').addEventListener('click', () => {
     cancelShapeEdit();
+    drawForAreaId = null;
     setAddPointMode(false);
     if (map.pm.globalDrawModeEnabled()) {
       map.pm.disableDraw();
@@ -441,6 +615,18 @@ function wireTools() {
       toast('Nejdřív zapni Polohu, ať vím, kde stojíš');
     }
   });
+  $('#btn-import-areas').addEventListener('click', async () => {
+    closeOverlay();
+    if (!(await confirmSheet('Načíst oficiální hranice ZCHÚ z AOPK a založit lokální VKP/biocentra k zakreslení?', { okText: 'Načíst' }))) return;
+    toast('Načítám chráněná území…');
+    try {
+      const added = await importProtectedAreas();
+      toast(added ? `Přidáno ${added} území ✓` : 'Vše už je načteno', { ms: 3200 });
+    } catch {
+      toast('Import se nezdařil – zkus to online', { error: true });
+    }
+  });
+
   $('#btn-export').addEventListener('click', () => {
     closeOverlay();
     const items = Store.get('notes');
@@ -463,18 +649,38 @@ function wireTools() {
 }
 
 export const MapView = {
-  collections: ['notes'],
+  collections: ['notes', 'areas'],
   mount() {
     initMap();
     wireTools();
     Store.subscribe('notes', render);
+    Store.subscribe('areas', renderAreas);
   },
   onShow() {
     if (map) setTimeout(() => map.invalidateSize(), 80);
   },
   onHide() {
     cancelShapeEdit();
+    drawForAreaId = null;
     setAddPointMode(false);
     if (map && map.pm) map.pm.disableDraw();
+  },
+  // Volá app.js po přepnutí na mapu (ze seznamu „Zakreslit / Na mapě").
+  focusArea(id) {
+    const a = Store.get('areas').find((x) => x.id === id);
+    if (!a) return;
+    if (a.geometry) {
+      const r = renderedAreas.get(id);
+      if (r) {
+        try {
+          map.fitBounds(r.layer.getBounds(), { maxZoom: 17, padding: [40, 40] });
+        } catch {
+          /* ignore */
+        }
+      }
+      openAreaView(a);
+    } else {
+      startDrawArea(id);
+    }
   },
 };

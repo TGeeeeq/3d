@@ -11,6 +11,7 @@ export const COLLECTIONS = new Set([
   'finance', // příjmy/výdaje
   'rewards', // odměny / body
   'localities', // spravované lokality (do budoucna)
+  'areas', // chráněná území (ZCHÚ/VKP/ÚSES) – editovatelné hranice v mapě
 ]);
 
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
