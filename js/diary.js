@@ -5,6 +5,7 @@ import { Api } from './api.js';
 import {
   $, $$, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDateTime, confirmSheet, emptyState, getUser,
 } from './ui.js';
+import { deleteButton, wireDeleteButtons } from './actions.js';
 
 const DRAFT_KEY = 'ochr.diary.draft';
 const FILTER_KEY = 'ochr.diary.filter';
@@ -326,18 +327,12 @@ function renderList(items) {
         ${e.text ? `<div class="body">${escapeHtml(e.text)}</div>` : ''}
         ${photo}${img}${audio}
         <div class="sheet-buttons" style="margin-top:10px">
-          <button class="danger" data-del="${e.id}" type="button">Smazat</button>
+          ${deleteButton(e, { mineCls: 'danger', style: '' })}
         </div>
       </div>`;
     })
     .join('');
-  list.querySelectorAll('[data-del]').forEach((b) => {
-    b.onclick = async () => {
-      if (!(await confirmSheet('Smazat tento zápis?', { okText: 'Smazat', danger: true }))) return;
-      await Store.remove('diary', b.dataset.del);
-      toast('Smazáno');
-    };
-  });
+  wireDeleteButtons(list, 'diary', (id) => shown.find((x) => x.id === id), (e) => e.text || 'zápis v deníku');
 }
 
 export const DiaryView = {

@@ -4,6 +4,7 @@ import { Store } from './store.js';
 import {
   $, $$, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDate, fmtKc, confirmSheet, emptyState, getUser,
 } from './ui.js';
+import { deleteButton, wireDeleteButtons } from './actions.js';
 
 const CATS = ['Materiál', 'Doprava', 'Nářadí', 'Dotace', 'Dar', 'Mzda', 'Občerstvení', 'Ostatní'];
 const FILTER_KEY = 'ochr.finance.filter';
@@ -92,19 +93,13 @@ function rowHtml(x) {
         ${authorChip(x.author)}
         <span>${escapeHtml(fmtDate(x.date || x.createdAt))}</span>
         <span class="spacer"></span>
-        <button class="btn-ghost" data-del="${x.id}" type="button" style="min-height:32px;padding:0 12px">Smazat</button>
+        ${deleteButton(x)}
       </div>
     </div>`;
 }
 
 function bindDelete(list) {
-  list.querySelectorAll('[data-del]').forEach((b) => {
-    b.onclick = async () => {
-      if (!(await confirmSheet('Smazat tento pohyb?', { okText: 'Smazat', danger: true }))) return;
-      await Store.remove('finance', b.dataset.del);
-      toast('Smazáno');
-    };
-  });
+  wireDeleteButtons(list, 'finance', (id) => Store.get('finance').find((x) => x.id === id), (x) => x.note || x.category || 'pohyb');
 }
 
 function render(items) {

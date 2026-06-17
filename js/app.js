@@ -9,6 +9,8 @@ import { DiaryView } from './diary.js';
 import { TimeView } from './time.js';
 import { FinanceView } from './finance.js';
 import { LocalitiesView } from './localities.js';
+import { ChatView } from './chat.js';
+import { initNotifications } from './notifications.js';
 
 const VIEWS = {
   map: MapView,
@@ -17,6 +19,7 @@ const VIEWS = {
   time: TimeView,
   finance: FinanceView,
   localities: LocalitiesView,
+  chat: ChatView,
 };
 
 let currentTab = null;
@@ -39,7 +42,8 @@ function showTab(tab) {
     view._mounted = true;
   }
   currentTab = tab;
-  setLiveCollections(view.collections || []);
+  // notifikace pollujeme vždy (kvůli zvonečku), bez ohledu na aktivní záložku
+  setLiveCollections([...(view.collections || []), 'notifications']);
   view.onShow?.();
   try {
     localStorage.setItem('ochr.tab', tab);
@@ -80,6 +84,7 @@ function enterApp(user) {
   $('#app').hidden = false;
   $('#user-name').textContent = user.name;
   wirePendingBadge();
+  initNotifications();
   startSync(20000);
   const last = localStorage.getItem('ochr.tab');
   showTab(VIEWS[last] ? last : 'map');
@@ -159,7 +164,7 @@ function wireMenus() {
     closeOverlay();
     toast('Načítám data…');
     await Promise.all(
-      ['notes', 'tracks', 'diary', 'time', 'finance', 'rewards', 'localities', 'areas'].map((c) =>
+      ['notes', 'tracks', 'diary', 'time', 'finance', 'rewards', 'localities', 'areas', 'chat', 'notifications'].map((c) =>
         Store.refresh(c).catch(() => {})
       )
     );

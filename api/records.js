@@ -90,6 +90,15 @@ export default async function handler(req, res) {
 
     if (req.method === 'DELETE') {
       const id = (req.query.id || '').toString();
+      // Mazat smí jen autor záznamu. Výjimka: notifikaci smí zrušit i její adresát (target).
+      const existing = await getRecord(collection, id);
+      if (existing && existing.author && existing.author !== session.u) {
+        const isNotifTarget = collection === 'notifications' && existing.target === session.u;
+        if (!isNotifTarget) {
+          res.status(403).json({ error: 'not_owner' });
+          return;
+        }
+      }
       await deleteRecord(collection, id);
       res.status(200).json({ ok: true });
       return;

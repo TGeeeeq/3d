@@ -6,6 +6,7 @@ import {
 } from './ui.js';
 import { LOCALITIES, localitiesByType } from './localities-data.js';
 import { AREA_TYPES, AREA_TYPE_ORDER, importProtectedAreas } from './protected-areas-data.js';
+import { deleteButton, wireDeleteButtons, requestDelete } from './actions.js';
 
 // ---------- vlastní lokality (mimo seznam) ----------
 function openForm() {
@@ -89,7 +90,7 @@ function openAreaEdit(a) {
     <div class="sheet-buttons">
       <button class="primary" data-save type="button">Uložit</button>
       <button data-map type="button">${a.geometry ? '🗺️ Ukázat / upravit v mapě' : '🗺️ Zakreslit v mapě'}</button>
-      <button class="danger" data-del type="button">Smazat</button>
+      ${deleteButton(a, { mineCls: 'danger', proposeCls: 'secondary', style: '' })}
       <button class="secondary" data-cancel type="button">Zrušit</button>
     </div>`);
   let type = a.type;
@@ -119,11 +120,9 @@ function openAreaEdit(a) {
     closeOverlay();
     window.dispatchEvent(new CustomEvent('ochr:draw-area', { detail: { id: a.id } }));
   };
-  sheet.querySelector('[data-del]').onclick = async () => {
+  sheet.querySelector('[data-reqdel]').onclick = async () => {
     closeOverlay();
-    if (!(await confirmSheet(`Smazat „${a.name}"?`, { okText: 'Smazat', danger: true }))) return;
-    await Store.remove('areas', a.id);
-    toast('Smazáno');
+    await requestDelete('areas', a, a.name);
   };
 }
 
@@ -234,22 +233,12 @@ function render(items) {
           ${authorChip(l.author)}
           <span>${escapeHtml(fmtDate(l.createdAt))}</span>
           <span class="spacer"></span>
-          <button class="btn-ghost" data-del="${l.id}" type="button" style="min-height:32px;padding:0 12px">Smazat</button>
+          ${deleteButton(l)}
         </div>
       </div>`;
       })
       .join('');
-  list.querySelectorAll('[data-del]').forEach((b) => {
-    b.onclick = async () => {
-      if (!(await confirmSheet('Smazat tuto lokalitu?', { okText: 'Smazat', danger: true }))) return;
-      try {
-        await Store.remove('localities', b.dataset.del);
-        toast('Smazáno');
-      } catch {
-        toast('Smazání selhalo', { error: true });
-      }
-    };
-  });
+  wireDeleteButtons(list, 'localities', (id) => items.find((x) => x.id === id), (l) => l.name || 'lokalita');
 }
 
 export const LocalitiesView = {

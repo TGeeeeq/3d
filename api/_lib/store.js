@@ -12,6 +12,8 @@ export const COLLECTIONS = new Set([
   'rewards', // odměny / body
   'localities', // spravované lokality (do budoucna)
   'areas', // chráněná území (ZCHÚ/VKP/ÚSES) – editovatelné hranice v mapě
+  'notifications', // upozornění (návrhy na smazání) směrované konkrétnímu uživateli
+  'chat', // týmový live chat
 ]);
 
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;

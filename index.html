@@ -100,6 +100,7 @@
   <div id="app" hidden>
     <header id="app-header">
       <div class="brand"><span class="brand-mark">🐄</span> Trosečníci <span class="brand-loc">Rudoltička</span></div>
+      <button id="notif-bell" type="button" aria-label="Upozornění" hidden>🔔<span id="notif-count" hidden>0</span></button>
       <button id="user-chip" type="button" aria-label="Uživatel a menu"><span id="user-name">–</span> ⋯</button>
     </header>
 
@@ -129,6 +130,9 @@
 
       <!-- LOKALITY -->
       <section class="view scrollable" id="view-localities" data-tab="localities" hidden></section>
+
+      <!-- CHAT -->
+      <section class="view" id="view-chat" data-tab="chat" hidden></section>
     </main>
 
     <nav id="tabbar">
@@ -137,6 +141,7 @@
       <button class="tab" data-tab="diary" type="button"><span class="ti">📓</span><span class="tl">Deník</span></button>
       <button class="tab" data-tab="time" type="button"><span class="ti">⏱️</span><span class="tl">Hodiny</span></button>
       <button class="tab" data-tab="finance" type="button"><span class="ti">💰</span><span class="tl">Finance</span></button>
+      <button class="tab" data-tab="chat" type="button"><span class="ti">💬</span><span class="tl">Chat</span></button>
     </nav>
   </div>
 

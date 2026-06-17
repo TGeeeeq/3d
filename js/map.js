@@ -7,6 +7,7 @@ import {
 } from './ui.js';
 import { localityOptionsHtml, localityName } from './localities-data.js';
 import { AREA_TYPES, AREA_TYPE_ORDER, areaType, REFERENCE_ZCHU, importProtectedAreas } from './protected-areas-data.js';
+import { deleteButton, requestDelete } from './actions.js';
 
 // Ostrov u Lanškrouna – střed oblasti, kde tým pečuje o lokality.
 const OSTROV = [49.930273, 16.540589];
@@ -320,7 +321,7 @@ function areaFormHtml(a) {
     <div class="sheet-buttons">
       <button class="primary" data-save type="button">Uložit</button>
       <button data-shape type="button">${a.geometry ? 'Upravit tvar' : '🗺️ Zakreslit na mapě'}</button>
-      <button class="danger" data-del type="button">Smazat</button>
+      ${deleteButton(a, { mineCls: 'danger', proposeCls: 'secondary', style: '' })}
       <button class="secondary" data-cancel type="button">Zrušit</button>
     </div>`;
 }
@@ -350,11 +351,9 @@ function openAreaView(a) {
     });
     toast('Uloženo ✓');
   };
-  sheet.querySelector('[data-del]').onclick = async () => {
+  sheet.querySelector('[data-reqdel]').onclick = async () => {
     closeOverlay();
-    if (!(await confirmSheet(`Smazat „${a.name}" z vrstvy chráněných území?`, { okText: 'Smazat', danger: true }))) return;
-    await Store.remove('areas', a.id);
-    toast('Smazáno');
+    await requestDelete('areas', a, a.name);
   };
   sheet.querySelector('[data-shape]').onclick = () => {
     closeOverlay();
@@ -411,7 +410,7 @@ function onPolygonCreate(e) {
 }
 
 // ---------- formulář ----------
-function noteFormHtml({ title, category = 'observation', note = '', locality = '', editing = false }) {
+function noteFormHtml({ title, category = 'observation', note = '', locality = '', editing = false, item = null }) {
   const choice = (key) => `
     <button type="button" class="choice ${category === key ? 'selected' : ''}" data-cat="${key}">
       <span class="ic">${CATS[key].icon}</span><span class="nm">${CATS[key].name}</span>
@@ -431,7 +430,7 @@ function noteFormHtml({ title, category = 'observation', note = '', locality = '
     <div class="sheet-buttons">
       <button class="primary" data-save type="button">Uložit</button>
       ${editing ? '<button data-shape type="button">Upravit tvar</button>' : ''}
-      ${editing ? '<button class="danger" data-del type="button">Smazat</button>' : ''}
+      ${editing && item ? deleteButton(item, { mineCls: 'danger', proposeCls: 'secondary', style: '' }) : ''}
       <button class="secondary" data-cancel type="button">Zrušit</button>
     </div>`;
 }
@@ -471,7 +470,7 @@ function openNoteForm(kind, geometry, tempLayer) {
 
 function openNoteView(f) {
   const sheet = openSheet(
-    noteFormHtml({ title: 'Poznámka', category: f.category, note: f.note, locality: f.locality, editing: true })
+    noteFormHtml({ title: 'Poznámka', category: f.category, note: f.note, locality: f.locality, editing: true, item: f })
   );
   const meta = document.createElement('p');
   meta.className = 'login-foot';
@@ -489,13 +488,11 @@ function openNoteView(f) {
     await Store.update('notes', f.id, { category, color: catOf(category).color, note, locality });
     toast('Uloženo ✓');
   };
-  const delBtn = sheet.querySelector('[data-del]');
+  const delBtn = sheet.querySelector('[data-reqdel]');
   if (delBtn)
     delBtn.onclick = async () => {
       closeOverlay();
-      if (!(await confirmSheet('Opravdu smazat tuhle poznámku?', { okText: 'Smazat', danger: true }))) return;
-      await Store.remove('notes', f.id);
-      toast('Smazáno');
+      await requestDelete('notes', f, f.note || catOf(f.category).name);
     };
   const shapeBtn = sheet.querySelector('[data-shape]');
   if (shapeBtn) {

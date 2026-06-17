@@ -4,6 +4,7 @@ import { Store } from './store.js';
 import {
   $, $$, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDate, fmtHours, fmtKc, confirmSheet, emptyState, getUser,
 } from './ui.js';
+import { deleteButton, wireDeleteButtons } from './actions.js';
 
 const POINTS_PER_HOUR = 10;
 const ACTIVITIES = ['Hrabání', 'Sekání', 'Odvoz', 'Rudoltička'];
@@ -157,18 +158,12 @@ function renderHours(items) {
         ${authorChip(t.author)}
         <span>${escapeHtml(fmtDate(t.date || t.createdAt))}</span>
         <span class="spacer"></span>
-        <button class="btn-ghost" data-del="${t.id}" type="button" style="min-height:32px;padding:0 12px">Smazat</button>
+        ${deleteButton(t)}
       </div>
     </div>`
     )
     .join('');
-  list.querySelectorAll('[data-del]').forEach((b) => {
-    b.onclick = async () => {
-      if (!(await confirmSheet('Smazat tento záznam hodin?', { okText: 'Smazat', danger: true }))) return;
-      await Store.remove('time', b.dataset.del);
-      toast('Smazáno');
-    };
-  });
+  wireDeleteButtons(list, 'time', (id) => Store.get('time').find((x) => x.id === id), (t) => t.activity || 'záznam hodin');
 }
 
 function renderRewards(items) {
@@ -192,7 +187,7 @@ function renderRewards(items) {
             ? `<span>✅ Získal(a): ${authorChip(r.claimedBy)}</span>`
             : `<button class="btn-soft" data-claim="${r.id}" type="button" style="min-height:36px;padding:0 14px">Označit jako získané</button>`}
           <span class="spacer"></span>
-          <button class="btn-ghost" data-delr="${r.id}" type="button" style="min-height:32px;padding:0 12px">Smazat</button>
+          ${deleteButton(r)}
         </div>
       </div>`;
     })
@@ -203,13 +198,7 @@ function renderRewards(items) {
       toast('Odměna získána 🎉');
     };
   });
-  list.querySelectorAll('[data-delr]').forEach((b) => {
-    b.onclick = async () => {
-      if (!(await confirmSheet('Smazat tuto odměnu?', { okText: 'Smazat', danger: true }))) return;
-      await Store.remove('rewards', b.dataset.delr);
-      toast('Smazáno');
-    };
-  });
+  wireDeleteButtons(list, 'rewards', (id) => Store.get('rewards').find((x) => x.id === id), (r) => r.title || 'odměna');
 }
 
 function switchPanel(panel) {
