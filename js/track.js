@@ -33,11 +33,17 @@ function haversine(a, b) {
 
 function saveDraft() {
   try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ points, distance, startTs }));
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ points, distance, startTs, lastTs: Date.now() }));
   } catch {
     /* ignore */
   }
 }
+// Při uspání/zavření stránky stihneme uložit poslední stav (pojistka navíc).
+const persistIfRecording = () => {
+  if (recording) saveDraft();
+};
+document.addEventListener('visibilitychange', persistIfRecording);
+window.addEventListener('pagehide', persistIfRecording);
 function clearDraft() {
   try {
     localStorage.removeItem(DRAFT_KEY);
@@ -87,6 +93,7 @@ function startRecording() {
   lastFix = null;
   startTs = Date.now();
   liveLine.setLatLngs([]);
+  saveDraft(); // hned od začátku zapiš draft (ať máme startTs i při brzkém zavření)
   const btn = $('#trk-toggle');
   btn.innerHTML = '<span class="rec-dot"></span> Ukončit a uložit';
   btn.classList.remove('btn-primary');
@@ -134,20 +141,31 @@ async function stopRecording() {
 }
 
 // Po pádu/zavření appky obnoví rozdělanou trasu a sama ji uloží.
-async function recoverDraftIfAny() {
+// Volá se HNED po startu appky (na kterékoli záložce), ne až při otevření Trasy.
+let recovered = false;
+export async function recoverTrackDraft() {
+  if (recovered || recording) return;
+  recovered = true;
   let d = null;
   try {
     d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
   } catch {
     d = null;
   }
-  if (!d || !Array.isArray(d.points) || d.points.length < 2 || (d.distance || 0) < 5) {
+  if (!d || !Array.isArray(d.points) || d.points.length < 2) {
     clearDraft();
     return;
   }
-  await persistTrack(d.points, d.distance, d.startTs || Date.now(), Date.now(), 'Obnovená trasa');
+  // Vzdálenost dopočítáme z bodů, kdyby v draftu chyběla nebo byla nulová.
+  let dist = Number(d.distance) || 0;
+  if (dist < 1) {
+    for (let i = 1; i < d.points.length; i++) dist += haversine(d.points[i - 1], d.points[i]);
+  }
+  const started = d.startTs || Date.now();
+  const ended = d.lastTs || started;
+  await persistTrack(d.points, dist, started, ended, 'Obnovená trasa');
   clearDraft();
-  toast('Nedokončená trasa byla obnovena a uložena ✓', { ms: 3500 });
+  toast(`Nedokončená trasa obnovena a uložena ✓ ${fmtDistance(dist)}`, { ms: 4000 });
 }
 
 function setFilter(mine) {
@@ -218,7 +236,7 @@ export const TrackView = {
           <div style="text-align:right"><div id="trk-live-time" style="font-size:24px;font-weight:800;color:var(--green)">0:00</div><div class="lbl">čas</div></div>
         </div>
         <button id="trk-toggle" class="btn-primary" style="width:100%;margin-top:12px">▶ Začít záznam</button>
-        <p class="login-foot" style="text-align:left">Trasa se během nahrávání průběžně sama zálohuje, takže se neztratí ani při zavření appky. Po ukončení se automaticky uloží a sečte do nachozených metrů týmu.</p>
+        <p class="login-foot" style="text-align:left">Trasa se během nahrávání průběžně sama zálohuje. I když appku zavřeš nebo spadne, po dalším spuštění se rozdělaná trasa sama obnoví a uloží. Po ukončení se sečte do nachozených metrů týmu.</p>
       </div>
       <div class="seg" style="margin-top:4px">
         <button data-f="all" class="active" type="button">👥 Vše</button>
@@ -231,7 +249,6 @@ export const TrackView = {
     $$('#view-track .seg button').forEach((b) => b.classList.toggle('active', (b.dataset.f === 'mine') === filterMine));
     $('#trk-toggle').addEventListener('click', () => (recording ? stopRecording() : startRecording()));
     Store.subscribe('tracks', renderList);
-    recoverDraftIfAny();
   },
   onShow() {
     if (tmap) setTimeout(() => tmap.invalidateSize(), 80);

@@ -4,7 +4,7 @@ import { Api } from './api.js';
 import { Store, setLiveCollections, startSync, stopSync, onPending } from './store.js';
 import { $, $$, toast, openOverlay, closeOverlay, setUser } from './ui.js';
 import { MapView } from './map.js';
-import { TrackView } from './track.js';
+import { TrackView, recoverTrackDraft } from './track.js';
 import { DiaryView } from './diary.js';
 import { TimeView } from './time.js';
 import { FinanceView } from './finance.js';
@@ -107,6 +107,7 @@ function enterApp(user) {
   initNotifications();
   initChatNotify();
   startSync(20000);
+  recoverTrackDraft(); // obnoví rozdělanou trasu hned po startu, ať se neztratí
   const last = localStorage.getItem('ochr.tab');
   showTab(VIEWS[last] ? last : 'map');
 }
