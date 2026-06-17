@@ -336,11 +336,17 @@ button:disabled { opacity: 0.55; }
 #pending-badge.ok { background: #e7f5e9; color: #2e7d32; }
 .pend { color: #b8860b; font-size: 12px; font-weight: 700; }
 
-/* filtr na mapě */
+/* filtr na mapě – vlevo pod ovládáním zoomu, ať nekoliduje s přepínačem vrstev vpravo */
 #map-filter {
-  position: absolute; top: calc(8px + var(--safe-t)); left: 50%; transform: translateX(-50%); z-index: 1000;
+  position: absolute; top: calc(82px + var(--safe-t)); left: 8px; z-index: 1000;
   display: flex; gap: 2px; background: rgba(255,255,255,.94); border-radius: 20px; padding: 3px; box-shadow: 0 2px 8px rgba(0,0,0,.28);
 }
+/* popisek okolních ZCHÚ uprostřed plochy */
+.leaflet-tooltip.area-label {
+  background: rgba(21,101,192,.85); color: #fff; border: none; box-shadow: none;
+  font-weight: 700; font-size: 11px; padding: 1px 6px; border-radius: 6px; white-space: nowrap;
+}
+.leaflet-tooltip.area-label::before { display: none; }
 #map-filter button { border: none; background: none; padding: 6px 13px; border-radius: 18px; font-size: 12.5px; font-weight: 700; color: var(--muted); cursor: pointer; }
 #map-filter button.active { background: var(--green); color: #fff; }
 

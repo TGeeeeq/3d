@@ -55,10 +55,15 @@ export function openOverlay(sheetEl, onClose) {
 }
 
 // Vytvoří dočasný sheet z HTML, zobrazí ho a vrátí jeho element. Po zavření se odstraní.
-export function openSheet(innerHtml) {
+// onClose se zavolá při JAKÉMKOLIV zavření (i klepnutím na pozadí) – nutné pro úklid
+// dočasných vrstev na mapě, aby na ní nezůstávaly „duchové".
+export function openSheet(innerHtml, onClose) {
   const sheet = el(`<div class="sheet"><div class="sheet-handle"></div>${innerHtml}</div>`);
   $('#sheet-host').appendChild(sheet);
-  openOverlay(sheet, () => sheet.remove());
+  openOverlay(sheet, () => {
+    sheet.remove();
+    if (onClose) onClose();
+  });
   return sheet;
 }
 

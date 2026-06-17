@@ -104,7 +104,7 @@ function initMap() {
   L.control
     .layers(
       baseLayers,
-      { '🛡️ Naše chráněná území': areasLayer, '📚 Okolní ZCHÚ (reference)': refLayer },
+      { '🛡️ Naše území': areasLayer, '📚 Okolní ZCHÚ': refLayer },
       { position: 'topright', collapsed: true }
     )
     .addTo(map);
@@ -237,13 +237,14 @@ function buildReferenceLayer() {
     const latlngs = geoToLatLngs(a.geometry);
     if (!latlngs) continue;
     const poly = L.polygon(latlngs, {
-      color: '#5b6b63', weight: 1, fillColor: '#5b6b63', fillOpacity: 0.06, dashArray: '4,4', interactive: true,
+      color: '#1565c0', weight: 2.5, fillColor: '#1e88e5', fillOpacity: 0.18, dashArray: '6,4', interactive: true,
     });
     const link = a.usopUrl ? `<br><a href="${a.usopUrl}" target="_blank" rel="noopener">Záznam v ÚSOP →</a>` : '';
     poly.bindPopup(
       `<b>${escapeHtml(a.kat ? a.kat + ' ' : '')}${escapeHtml(a.name)}</b>` +
-      `${a.areaHa ? `<br>${a.areaHa} ha` : ''}<br><span style="color:#667">Reference (AOPK ČR)</span>${link}`
+      `${a.areaHa ? `<br>${a.areaHa} ha` : ''}<br><span style="color:#667">Okolní ZCHÚ · reference (AOPK ČR)</span>${link}`
     );
+    poly.bindTooltip(escapeHtml(a.name), { direction: 'center', className: 'area-label' });
     grp.addLayer(poly);
   }
   return grp;
@@ -448,13 +449,13 @@ function bindChoice(sheet) {
 }
 
 function openNoteForm(kind, geometry, tempLayer) {
-  const sheet = openSheet(noteFormHtml({ title: kind === 'point' ? 'Nový bod' : 'Nová plocha' }));
-  const getCat = bindChoice(sheet);
   const cleanup = () => {
     if (tempLayer && map.hasLayer(tempLayer)) map.removeLayer(tempLayer);
   };
+  // cleanup se spustí i při zavření přes pozadí – dočasný špendlík/plocha tak nikdy nezůstane viset.
+  const sheet = openSheet(noteFormHtml({ title: kind === 'point' ? 'Nový bod' : 'Nová plocha' }), cleanup);
+  const getCat = bindChoice(sheet);
   sheet.querySelector('[data-cancel]').onclick = () => {
-    cleanup();
     closeOverlay();
   };
   sheet.querySelector('[data-save]').onclick = async () => {
