@@ -88,8 +88,9 @@ function openHoursForm() {
       /* ignore */
     }
     closeOverlay();
-    await Store.add('time', { hours, date, activity, wage: wage || 0 });
-    // Mzda se sama přepočítá do OSOBNÍCH financí (vidí ji jen přihlášený uživatel).
+    // Záznam hodin je SDÍLENÝ – proto na něj sazbu NEUKLÁDÁME, ať nikdo nevidí cizí sazbu.
+    await Store.add('time', { hours, date, activity });
+    // Sazba se použije jen k výpočtu OSOBNÍ finance (scope personal – vidí ji jen přihlášený).
     if (wage > 0) {
       await Store.add('finance', {
         scope: 'personal',
@@ -154,7 +155,6 @@ function renderHours(items) {
       </div>
       <div class="meta">
         ${authorChip(t.author)}
-        ${Number(t.wage) > 0 ? `<span class="pill money-in">💪 ${escapeHtml(fmtKc((Number(t.hours) || 0) * Number(t.wage)))}</span>` : ''}
         <span>${escapeHtml(fmtDate(t.date || t.createdAt))}</span>
         <span class="spacer"></span>
         <button class="btn-ghost" data-del="${t.id}" type="button" style="min-height:32px;padding:0 12px">Smazat</button>
@@ -230,6 +230,23 @@ function setFilter(mine) {
   renderHours(Store.get('time'));
 }
 
+// Jednorázové pročištění: vynuluje sazbu na MÝCH starších sdílených záznamech hodin
+// (sazba se dřív krátce ukládala na sdílený záznam). Každý člen si tím pročistí své.
+let wageScrubbed = false;
+async function scrubMyWages() {
+  if (wageScrubbed) return;
+  wageScrubbed = true;
+  try {
+    await Store.refresh('time');
+  } catch {
+    /* offline – pročistí se z lokální cache */
+  }
+  const me = getUser()?.name;
+  for (const t of Store.get('time')) {
+    if (t.author === me && Number(t.wage) > 0) Store.update('time', t.id, { wage: 0 });
+  }
+}
+
 export const TimeView = {
   collections: ['time', 'rewards'],
   mount(viewEl) {
@@ -264,5 +281,6 @@ export const TimeView = {
     Store.subscribe('time', renderHours);
     Store.subscribe('rewards', renderRewards);
     switchPanel('hours');
+    scrubMyWages();
   },
 };
