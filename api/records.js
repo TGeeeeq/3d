@@ -34,7 +34,10 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const items = await listCollection(collection);
+      const all = await listCollection(collection);
+      // Soukromé záznamy (scope === 'personal') vidí jen jejich autor – osobní finance se
+      // nesmí dostat k ostatním ani po drátě, proto se filtruje na serveru, ne až v klientu.
+      const items = all.filter((r) => r.scope !== 'personal' || r.author === session.u);
       items.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
       res.status(200).json({ items });
       return;

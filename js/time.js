@@ -2,10 +2,12 @@
 'use strict';
 import { Store } from './store.js';
 import {
-  $, $$, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDate, fmtHours, confirmSheet, emptyState, getUser,
+  $, $$, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDate, fmtHours, fmtKc, confirmSheet, emptyState, getUser,
 } from './ui.js';
 
 const POINTS_PER_HOUR = 10;
+const ACTIVITIES = ['Hrabání', 'Sekání', 'Odvoz', 'Rudoltička'];
+const WAGE_KEY = 'ochr.time.wage';
 const FILTER_KEY = 'ochr.time.filter';
 let filterMine = false;
 try {
@@ -16,29 +18,91 @@ try {
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 function openHoursForm() {
+  let lastWage = '';
+  try {
+    lastWage = localStorage.getItem(WAGE_KEY) || '';
+  } catch {
+    /* ignore */
+  }
+  const actOpts = ACTIVITIES.map((a) => `<option value="${a}">${a}</option>`).join('');
   const sheet = openSheet(`
     <h2>Zapsat hodiny</h2>
     <div class="field"><label>Datum</label><input id="h-date" type="date" value="${todayISO()}"></div>
     <div class="field-row">
       <div class="field"><label>Hodin</label><input id="h-hours" type="number" inputmode="decimal" min="0.5" step="0.5" value="2"></div>
     </div>
-    <div class="field"><label>Činnost</label><input id="h-act" type="text" placeholder="např. sečení pcháče, výsadba, monitoring, kravky" maxlength="120"></div>
+    <div class="field"><label>Činnost</label>
+      <select id="h-act-sel">${actOpts}<option value="__other">Jiné…</option></select>
+    </div>
+    <div class="field" id="h-act-other-wrap" hidden>
+      <label>Jiná činnost</label>
+      <input id="h-act" type="text" placeholder="např. výsadba, monitoring, kravky" maxlength="120">
+    </div>
+    <div class="field">
+      <label>Hodinová mzda <span style="font-weight:500;color:var(--muted)">(Kč/h, nepovinné)</span></label>
+      <input id="h-wage" type="number" inputmode="decimal" min="0" step="10" value="${escapeHtml(lastWage)}" placeholder="0">
+      <div id="h-wage-calc" class="sub" style="margin-top:6px;color:var(--muted)"></div>
+    </div>
     <div class="sheet-buttons">
       <button class="primary" data-save type="button">Uložit</button>
       <button class="secondary" data-cancel type="button">Zrušit</button>
     </div>`);
+
+  const sel = sheet.querySelector('#h-act-sel');
+  const otherWrap = sheet.querySelector('#h-act-other-wrap');
+  const otherInput = sheet.querySelector('#h-act');
+  sel.addEventListener('change', () => {
+    otherWrap.hidden = sel.value !== '__other';
+    if (sel.value === '__other') otherInput.focus();
+  });
+
+  const hoursEl = sheet.querySelector('#h-hours');
+  const wageEl = sheet.querySelector('#h-wage');
+  const calcEl = sheet.querySelector('#h-wage-calc');
+  const updateCalc = () => {
+    const h = parseFloat(hoursEl.value) || 0;
+    const w = parseFloat(wageEl.value) || 0;
+    calcEl.textContent = w > 0 ? `➕ Do osobních financí: ${fmtKc(h * w)}` : '';
+  };
+  hoursEl.addEventListener('input', updateCalc);
+  wageEl.addEventListener('input', updateCalc);
+  updateCalc();
+
   sheet.querySelector('[data-cancel]').onclick = closeOverlay;
   sheet.querySelector('[data-save]').onclick = async () => {
-    const hours = parseFloat(sheet.querySelector('#h-hours').value);
+    const hours = parseFloat(hoursEl.value);
     const date = sheet.querySelector('#h-date').value || todayISO();
-    const activity = sheet.querySelector('#h-act').value.trim();
+    const activity = sel.value === '__other' ? otherInput.value.trim() : sel.value;
+    const wage = parseFloat(wageEl.value) || 0;
     if (!hours || hours <= 0) {
       toast('Zadej počet hodin');
       return;
     }
+    if (sel.value === '__other' && !activity) {
+      toast('Zadej název činnosti');
+      return;
+    }
+    try {
+      localStorage.setItem(WAGE_KEY, wage > 0 ? String(wage) : '');
+    } catch {
+      /* ignore */
+    }
     closeOverlay();
-    await Store.add('time', { hours, date, activity });
-    toast('Hodiny zapsány ✓');
+    await Store.add('time', { hours, date, activity, wage: wage || 0 });
+    // Mzda se sama přepočítá do OSOBNÍCH financí (vidí ji jen přihlášený uživatel).
+    if (wage > 0) {
+      await Store.add('finance', {
+        scope: 'personal',
+        type: 'in',
+        amount: hours * wage,
+        category: 'Mzda',
+        note: `${activity || 'Práce v terénu'} – ${fmtHours(hours)} × ${fmtKc(wage)}/h`,
+        date,
+      });
+      toast(`Hodiny i mzda ${fmtKc(hours * wage)} zapsány ✓`, { ms: 3200 });
+    } else {
+      toast('Hodiny zapsány ✓');
+    }
   };
 }
 
@@ -90,6 +154,7 @@ function renderHours(items) {
       </div>
       <div class="meta">
         ${authorChip(t.author)}
+        ${Number(t.wage) > 0 ? `<span class="pill money-in">💪 ${escapeHtml(fmtKc((Number(t.hours) || 0) * Number(t.wage)))}</span>` : ''}
         <span>${escapeHtml(fmtDate(t.date || t.createdAt))}</span>
         <span class="spacer"></span>
         <button class="btn-ghost" data-del="${t.id}" type="button" style="min-height:32px;padding:0 12px">Smazat</button>

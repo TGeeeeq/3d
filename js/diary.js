@@ -27,6 +27,34 @@ function pickAudio() {
   return { mime: '', ext: 'webm' };
 }
 
+// Fotku z mobilu zmenšíme na rozumný rozměr (max 1600 px, JPEG) – ať se nahraje
+// spolehlivě i na slabém signálu a nepřekročí limit 12 MB v /api/media.
+function downscaleImage(file, maxDim = 1600, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width: w, height: h } = img;
+      if (w > maxDim || h > maxDim) {
+        const s = maxDim / Math.max(w, h);
+        w = Math.round(w * s);
+        h = Math.round(h * s);
+      }
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      c.toBlob((b) => (b ? resolve(b) : reject(new Error('encode_failed'))), 'image/jpeg', quality);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('load_failed'));
+    };
+    img.src = url;
+  });
+}
+
 function setupCanvas(canvas) {
   canvas.width = 1000;
   canvas.height = 680;
@@ -101,6 +129,19 @@ function openEntryForm() {
         <button type="button" class="color-swatch" data-color="#43a047" style="width:34px;height:34px;background:#43a047"></button>
         <span class="spacer"></span>
         <button type="button" class="btn-ghost" id="d-clear" style="min-height:34px;padding:0 12px">Vymazat</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Fotka z terénu <span style="font-weight:500;color:var(--muted)">(nepovinné)</span></label>
+      <div class="row" style="gap:8px">
+        <button type="button" id="d-photo-cam" class="btn-soft" style="flex:1;min-height:44px">📷 Vyfotit</button>
+        <button type="button" id="d-photo-pick" class="btn-soft" style="flex:1;min-height:44px">🖼️ Vybrat</button>
+      </div>
+      <input id="d-photo-cam-input" type="file" accept="image/*" capture="environment" hidden>
+      <input id="d-photo-pick-input" type="file" accept="image/*" hidden>
+      <div id="d-photo-wrap" hidden style="margin-top:8px;position:relative">
+        <img id="d-photo-prev" class="media-img" alt="náhled fotky">
+        <button type="button" id="d-photo-clear" class="btn-ghost" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,.92);min-height:34px;padding:0 12px">Odebrat</button>
       </div>
     </div>
     <div class="field">
@@ -182,6 +223,33 @@ function openEntryForm() {
     }
   };
 
+  let photoBlob = null;
+  const photoWrap = sheet.querySelector('#d-photo-wrap');
+  const photoPrev = sheet.querySelector('#d-photo-prev');
+  const camInput = sheet.querySelector('#d-photo-cam-input');
+  const pickInput = sheet.querySelector('#d-photo-pick-input');
+  const onPhoto = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ''; // umožní vybrat tutéž fotku znovu po odebrání
+    if (!file) return;
+    try {
+      photoBlob = await downscaleImage(file);
+      photoPrev.src = URL.createObjectURL(photoBlob);
+      photoWrap.hidden = false;
+    } catch {
+      toast('Fotku se nepodařilo načíst', { error: true });
+    }
+  };
+  camInput.addEventListener('change', onPhoto);
+  pickInput.addEventListener('change', onPhoto);
+  sheet.querySelector('#d-photo-cam').onclick = () => camInput.click();
+  sheet.querySelector('#d-photo-pick').onclick = () => pickInput.click();
+  sheet.querySelector('#d-photo-clear').onclick = () => {
+    photoBlob = null;
+    photoWrap.hidden = true;
+    photoPrev.removeAttribute('src');
+  };
+
   const clearDraft = () => {
     try {
       localStorage.removeItem(DRAFT_KEY);
@@ -197,7 +265,7 @@ function openEntryForm() {
 
   sheet.querySelector('[data-save]').onclick = async () => {
     const text = textEl.value.trim();
-    if (!text && !pen.isDirty() && !audioBlob) {
+    if (!text && !pen.isDirty() && !audioBlob && !photoBlob) {
       toast('Zápis je prázdný');
       return;
     }
@@ -208,11 +276,12 @@ function openEntryForm() {
     try {
       // Média potřebují připojení – nahrajeme je teď, ať se neztratí kresba/hlas.
       if (pen.isDirty()) entry.drawingKey = await Api.uploadMedia(await pen.toBlob(), 'png');
+      if (photoBlob) entry.photoKey = await Api.uploadMedia(photoBlob, 'jpg');
       if (audioBlob) entry.audioKey = await Api.uploadMedia(audioBlob, audioExt);
     } catch {
       saveBtn.disabled = false;
       saveBtn.textContent = 'Uložit zápis';
-      toast('Kresbu/hlas nelze nahrát bez připojení. Text můžeš uložit hned, médium přidej online.', { error: true, ms: 4500 });
+      toast('Fotku/kresbu/hlas nelze nahrát bez připojení. Text můžeš uložit hned, médium přidej online.', { error: true, ms: 4500 });
       return;
     }
     await Store.add('diary', entry); // text se uloží i offline (fronta)
@@ -245,6 +314,7 @@ function renderList(items) {
   list.innerHTML = shown
     .map((e) => {
       const img = e.drawingKey ? `<img class="media-img" loading="lazy" src="${Api.mediaUrl(e.drawingKey)}" alt="kresba">` : '';
+      const photo = e.photoKey ? `<img class="media-img" loading="lazy" src="${Api.mediaUrl(e.photoKey)}" alt="fotka z terénu">` : '';
       const audio = e.audioKey ? `<audio class="media-audio" controls preload="none" src="${Api.mediaUrl(e.audioKey)}"></audio>` : '';
       return `
       <div class="card" style="border-left:4px solid ${userColor(e.author)}">
@@ -254,7 +324,7 @@ function renderList(items) {
           ${e._pending ? '<span class="pend">⏳ ukládá se</span>' : ''}
         </div>
         ${e.text ? `<div class="body">${escapeHtml(e.text)}</div>` : ''}
-        ${img}${audio}
+        ${photo}${img}${audio}
         <div class="sheet-buttons" style="margin-top:10px">
           <button class="danger" data-del="${e.id}" type="button">Smazat</button>
         </div>
