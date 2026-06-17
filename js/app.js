@@ -9,7 +9,7 @@ import { DiaryView } from './diary.js';
 import { TimeView } from './time.js';
 import { FinanceView } from './finance.js';
 import { LocalitiesView } from './localities.js';
-import { ChatView } from './chat.js';
+import { ChatView, initChatNotify } from './chat.js';
 import { initNotifications } from './notifications.js';
 
 const VIEWS = {
@@ -42,8 +42,8 @@ function showTab(tab) {
     view._mounted = true;
   }
   currentTab = tab;
-  // notifikace pollujeme vždy (kvůli zvonečku), bez ohledu na aktivní záložku
-  setLiveCollections([...(view.collections || []), 'notifications']);
+  // notifikace + chat pollujeme vždy (zvoneček a upozornění na zprávy fungují na všech záložkách)
+  setLiveCollections([...(view.collections || []), 'notifications', 'chat']);
   view.onShow?.();
   try {
     localStorage.setItem('ochr.tab', tab);
@@ -85,6 +85,7 @@ function enterApp(user) {
   $('#user-name').textContent = user.name;
   wirePendingBadge();
   initNotifications();
+  initChatNotify();
   startSync(20000);
   const last = localStorage.getItem('ochr.tab');
   showTab(VIEWS[last] ? last : 'map');
