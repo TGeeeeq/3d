@@ -24,6 +24,26 @@ const VIEWS = {
 
 let currentTab = null;
 
+// ---- velikost písma (přístupnost) ----
+const FONT_KEY = 'ochr.fontsize';
+function applyFontSize(level) {
+  document.body.classList.remove('fs-1', 'fs-2');
+  if (level === '1') document.body.classList.add('fs-1');
+  else if (level === '2') document.body.classList.add('fs-2');
+  document.querySelectorAll('#fontsize-seg button').forEach((b) =>
+    b.classList.toggle('active', b.dataset.fs === (level || '0'))
+  );
+}
+function initFontSize() {
+  let level = '0';
+  try {
+    level = localStorage.getItem(FONT_KEY) || '0';
+  } catch {
+    /* ignore */
+  }
+  applyFontSize(level);
+}
+
 function showTab(tab) {
   const view = VIEWS[tab];
   if (!view || currentTab === tab) return;
@@ -157,6 +177,17 @@ function wireTabs() {
 function wireMenus() {
   $('#user-chip').addEventListener('click', () => openOverlay($('#app-menu')));
   $('#btn-app-menu-close').addEventListener('click', closeOverlay);
+  document.querySelectorAll('#fontsize-seg button').forEach((b) =>
+    b.addEventListener('click', () => {
+      try {
+        localStorage.setItem(FONT_KEY, b.dataset.fs);
+      } catch {
+        /* ignore */
+      }
+      applyFontSize(b.dataset.fs);
+      toast('Velikost písma upravena');
+    })
+  );
   $('#btn-localities').addEventListener('click', () => {
     closeOverlay();
     showTab('localities');
@@ -183,6 +214,7 @@ function wireMenus() {
 }
 
 async function boot() {
+  initFontSize();
   wireLogin();
   wireTabs();
   wireMenus();

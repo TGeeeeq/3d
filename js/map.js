@@ -3,7 +3,7 @@
 'use strict';
 import { Store } from './store.js';
 import {
-  $, toast, openSheet, openOverlay, closeOverlay, escapeHtml, fmtDateTime, confirmSheet, getUser, userColor,
+  $, toast, openSheet, openOverlay, closeOverlay, escapeHtml, fmtDateTime, confirmSheet, getUser, userColor, authorChip,
 } from './ui.js';
 import { localityOptionsHtml, localityName } from './localities-data.js';
 import { AREA_TYPES, AREA_TYPE_ORDER, areaType, REFERENCE_ZCHU, importProtectedAreas } from './protected-areas-data.js';
@@ -191,7 +191,7 @@ function buildLayer(f) {
   layer.on('click', (e) => {
     L.DomEvent.stop(e);
     if (addPointMode || shapeEditFeature) return;
-    openNoteView(f);
+    openNotePreview(f);
   });
   layer.addTo(notesLayer);
   return layer;
@@ -265,7 +265,7 @@ function buildAreaLayer(a) {
   layer.on('click', (e) => {
     L.DomEvent.stop(e);
     if (addPointMode || shapeEditFeature || drawForAreaId) return;
-    openAreaView(a);
+    openAreaPreview(a);
   });
   layer.addTo(areasLayer);
   return layer;
@@ -445,6 +445,65 @@ function bindChoice(sheet) {
     });
   });
   return () => cat;
+}
+
+// Kompaktní náhled poznámky – jen info + tlačítka (úpravy se otevřou přes „Upravit").
+function openNotePreview(f) {
+  const c = catOf(f.category);
+  const loc = f.locality ? localityName(f.locality) : '';
+  const sheet = openSheet(`
+    <h2 style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:24px">${c.icon}</span>${escapeHtml(c.name)}</h2>
+    <div class="meta" style="margin-bottom:8px">
+      ${authorChip(f.author)}
+      <span>${escapeHtml(fmtDateTime(f.createdAt))}</span>
+      ${loc ? `<span class="pill cat">📍 ${escapeHtml(loc)}</span>` : ''}
+      ${f._pending ? '<span class="pend">⏳</span>' : ''}
+    </div>
+    ${f.note ? `<div class="body">${escapeHtml(f.note)}</div>` : '<div class="body" style="color:var(--muted)">(bez poznámky)</div>'}
+    <div class="sheet-buttons" style="margin-top:12px">
+      <button class="primary" data-edit type="button">✏️ Upravit</button>
+      ${deleteButton(f, { mineCls: 'danger', proposeCls: 'secondary', style: '' })}
+      <button class="secondary" data-cancel type="button">Zavřít</button>
+    </div>`);
+  sheet.querySelector('[data-cancel]').onclick = closeOverlay;
+  sheet.querySelector('[data-edit]').onclick = () => {
+    closeOverlay();
+    openNoteView(f);
+  };
+  sheet.querySelector('[data-reqdel]').onclick = async () => {
+    closeOverlay();
+    await requestDelete('notes', f, f.note || c.name);
+  };
+}
+
+// Kompaktní náhled chráněného území.
+function openAreaPreview(a) {
+  const t = areaType(a.type);
+  const official = a.source === 'aopk' ? '<span class="pill author" style="background:#2e7d3220;color:#2e7d32">AOPK</span>' : '';
+  const link = a.usopUrl ? `<a class="pill cat" href="${escapeHtml(a.usopUrl)}" target="_blank" rel="noopener">ÚSOP →</a>` : '';
+  const sheet = openSheet(`
+    <h2 style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:24px">${t.icon}</span>${escapeHtml(a.name)}</h2>
+    <div class="meta" style="margin-bottom:8px">
+      <span class="pill cat">${escapeHtml(t.label)}</span>
+      ${a.areaText ? `<span class="pill cat">${escapeHtml(a.areaText)}</span>` : ''}
+      ${official}${link}
+      ${a.geometry ? '' : '<span class="pill money-out">▢ bez zákresu</span>'}
+    </div>
+    ${a.desc ? `<div class="body">${escapeHtml(a.desc)}</div>` : ''}
+    <div class="sheet-buttons" style="margin-top:12px">
+      <button class="primary" data-edit type="button">✏️ Upravit</button>
+      ${deleteButton(a, { mineCls: 'danger', proposeCls: 'secondary', style: '' })}
+      <button class="secondary" data-cancel type="button">Zavřít</button>
+    </div>`);
+  sheet.querySelector('[data-cancel]').onclick = closeOverlay;
+  sheet.querySelector('[data-edit]').onclick = () => {
+    closeOverlay();
+    openAreaView(a);
+  };
+  sheet.querySelector('[data-reqdel]').onclick = async () => {
+    closeOverlay();
+    await requestDelete('areas', a, a.name);
+  };
 }
 
 function openNoteForm(kind, geometry, tempLayer) {
