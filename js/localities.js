@@ -142,9 +142,16 @@ async function runImport() {
   }
 }
 
-function renderAreas(items) {
+function renderAreas(rawItems) {
   const host = $('#areas-section');
   if (!host) return;
+  const seenSeed = new Set();
+  const items = rawItems.filter((a) => {
+    if (!a.seedId) return true;
+    if (seenSeed.has(a.seedId)) return false;
+    seenSeed.add(a.seedId);
+    return true;
+  });
   if (!items.length) {
     host.innerHTML = `
       <div class="card" style="border-left:4px solid var(--leaf)">

@@ -97,10 +97,10 @@ function initMap() {
   }
   (baseLayers[saved] || baseLayers['Letecká ČÚZK (CZ ortofoto)']).addTo(map);
 
-  // Vrstvy chráněných území: naše (editovatelná) zapnutá, okolní reference vypnutá.
+  // Vrstvy chráněných území: obě zapnuté (lze vypnout v přepínači vrstev vpravo nahoře).
   notesLayer = L.layerGroup().addTo(map);
   areasLayer = L.layerGroup().addTo(map);
-  refLayer = buildReferenceLayer();
+  refLayer = buildReferenceLayer().addTo(map);
   L.control
     .layers(
       baseLayers,
@@ -269,8 +269,19 @@ function buildAreaLayer(a) {
   return layer;
 }
 
-function renderAreas(items) {
+function dedupeAreas(items) {
+  const bySeed = new Set();
+  return items.filter((a) => {
+    if (!a.seedId) return true;
+    if (bySeed.has(a.seedId)) return false;
+    bySeed.add(a.seedId);
+    return true;
+  });
+}
+
+function renderAreas(rawItems) {
   if (!map || !areasLayer) return;
+  const items = dedupeAreas(rawItems);
   const seen = new Set();
   for (const a of items) {
     seen.add(a.id);
@@ -648,6 +659,22 @@ function wireTools() {
   });
 }
 
+// Při prvním otevření mapy chráněná území samy naimportujeme, ať jsou hned vidět.
+let autoSeedTried = false;
+async function maybeAutoSeedAreas() {
+  if (autoSeedTried) return;
+  autoSeedTried = true;
+  try {
+    await Store.refresh('areas');
+    if (Store.get('areas').length === 0) {
+      const n = await importProtectedAreas();
+      if (n) toast(`Načteno ${n} chráněných území 🛡️`, { ms: 3000 });
+    }
+  } catch {
+    /* offline – import půjde ručně přes menu */
+  }
+}
+
 export const MapView = {
   collections: ['notes', 'areas'],
   mount() {
@@ -655,6 +682,7 @@ export const MapView = {
     wireTools();
     Store.subscribe('notes', render);
     Store.subscribe('areas', renderAreas);
+    maybeAutoSeedAreas();
   },
   onShow() {
     if (map) setTimeout(() => map.invalidateSize(), 80);
