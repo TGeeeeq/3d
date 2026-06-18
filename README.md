@@ -81,6 +81,11 @@ Nasazení probíhá **automaticky při pushi do `main`** (repo je napojený na V
 | `TEAM_MEMBERS` | pojmenované profily a jejich hesla: `Jméno:heslo,Jméno2:heslo2` |
 | `TEAM_ACCESS_CODE` | záložní sdílený přístupový kód týmu |
 | `PLANTNET_API_KEY` | klíč k [Pl@ntNet API](https://my.plantnet.org/) pro určování rostlin z fotky (volitelné – bez něj se funkce skryje za hlášku). Free tier 500 určení/den; pro vyšší limit zažádat o neziskový plán. |
+| `INAT_APP_ID`, `INAT_APP_SECRET` | OAuth aplikace iNaturalist (registrace na `inaturalist.org/oauth/applications/new`, confidential) – pro publikaci pozorování |
+| `INAT_USERNAME`, `INAT_PASSWORD` | přihlašovací údaje sdíleného týmového iNat účtu ČSOP Trosečníci (pod ním se publikují pozorování) |
+| `INAT_USER_AGENT` | volitelné – vlastní User-Agent pro iNat API (výchozí `ochranar/1.0`) |
+
+Bez `INAT_*` se tlačítko „Odeslat do iNaturalistu" jen ozve hláškou, nic se nerozbije.
 
 **Změna profilů / hesel** (`TEAM_MEMBERS`):
 

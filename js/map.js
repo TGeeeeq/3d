@@ -489,6 +489,11 @@ function openNotePreview(f) {
     <div class="sheet-buttons" style="margin-top:12px">
       <button class="primary" data-edit type="button">✏️ Upravit</button>
       ${deleteButton(f, { mineCls: 'danger', proposeCls: 'secondary', style: '' })}
+      ${f.kind === 'point'
+        ? (f.inat && f.inat.url
+            ? `<a class="pill cat" href="${escapeHtml(f.inat.url)}" target="_blank" rel="noopener" style="align-self:center">✓ v iNaturalistu →</a>`
+            : '<button class="secondary" data-inat type="button">🌍 Odeslat do iNaturalistu</button>')
+        : ''}
       <button class="secondary" data-cancel type="button">Zavřít</button>
     </div>`);
   sheet.querySelector('[data-cancel]').onclick = closeOverlay;
@@ -500,6 +505,61 @@ function openNotePreview(f) {
     closeOverlay();
     await requestDelete('notes', f, f.note || c.name);
   };
+  const inatBtn = sheet.querySelector('[data-inat]');
+  if (inatBtn) inatBtn.onclick = () => publishNoteToInat(f, inatBtn);
+}
+
+// Publikace mapového bodu jako pozorování do iNaturalistu (sdílený týmový účet, ruční opt-in).
+async function publishNoteToInat(f, btn) {
+  if (!f.species || !f.species.scientificName) {
+    toast('Bod nemá určený druh – nejdřív urči druh z fotky', { error: true, ms: 4000 });
+    return;
+  }
+  const ok = await confirmSheet(
+    'Odeslat pozorování VEŘEJNĚ do iNaturalistu? Poteče dál do GBIF a NDOP. U zvláště chráněných druhů se přesná poloha skryje.',
+    { okText: 'Publikovat' }
+  );
+  if (!ok) return;
+
+  const [lng, lat] = f.geometry.coordinates;
+  const loc = f.locality ? localityName(f.locality) : '';
+  const description = [f.note, loc ? `Lokalita: ${loc}` : '', 'Zaznamenáno přes aplikaci ochranar (ČSOP Trosečníci)']
+    .filter(Boolean)
+    .join('\n');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Odesílám…';
+  try {
+    const r = await Api.publishToInat({
+      lat,
+      lng,
+      scientificName: f.species.scientificName,
+      observedOn: f.createdAt,
+      description,
+      geoprivacy: f.species.cz && f.species.cz.legal ? 'obscured' : 'open',
+      photoKey: f.photoKey || null,
+    });
+    await Store.update('notes', f.id, {
+      inat: {
+        id: r.id,
+        url: r.url,
+        publishedAt: new Date().toISOString(),
+        by: getUser()?.name || '?',
+        photoUploaded: !!r.photoUploaded,
+      },
+    });
+    toast('Publikováno v iNaturalistu ✓');
+    closeOverlay();
+  } catch (e) {
+    const msg =
+      e.status === 503 ? 'Publikace do iNaturalistu zatím není zapnutá'
+        : e.status === 429 ? 'Příliš mnoho požadavků na iNaturalist, zkus to za chvíli'
+        : e.status === 422 ? 'iNaturalist odmítl pozorování (zkontroluj druh/polohu)'
+        : 'Publikace se nezdařila (potřebuje připojení)';
+    toast(msg, { error: true, ms: 4500 });
+    btn.disabled = false;
+    btn.textContent = '🌍 Odeslat do iNaturalistu';
+  }
 }
 
 // Kompaktní náhled chráněného území.

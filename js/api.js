@@ -95,4 +95,9 @@ export const Api = {
   mediaUrl(key) {
     return `/api/media?key=${encodeURIComponent(key)}`;
   },
+
+  // Publikace pozorování do iNaturalistu (proxy /api/inat). Vrací { id, url, photoUploaded }.
+  async publishToInat(payload) {
+    return req('/api/inat', { json: payload });
+  },
 };
