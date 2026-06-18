@@ -59,6 +59,28 @@ export const Api = {
     );
   },
 
+  // Rozpoznání rostliny z fotky (proxy na Pl@ntNet). Vrací { results, remaining }.
+  async identifyPlant(blob) {
+    const res = await fetch('/api/identify', {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: blob,
+    });
+    if (!res.ok) {
+      let code = `http_${res.status}`;
+      try {
+        const d = await res.json();
+        if (d && d.error) code = d.error;
+      } catch {
+        /* prázdná odpověď */
+      }
+      const err = new Error(code);
+      err.status = res.status;
+      throw err;
+    }
+    return res.json(); // { results: [...], remaining }
+  },
+
   // Média: nahraje binární blob (hlas/kresba/foto) a vrátí klíč.
   async uploadMedia(blob, ext) {
     const res = await fetch(`/api/media?ext=${encodeURIComponent(ext)}`, {

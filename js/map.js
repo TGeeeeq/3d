@@ -2,12 +2,14 @@
 // Potok s meandry = Rudoltička (u Rudoltic / Ostrova). Volba kategorie + barva autora.
 'use strict';
 import { Store } from './store.js';
+import { Api } from './api.js';
 import {
   $, toast, openSheet, openOverlay, closeOverlay, escapeHtml, fmtDateTime, confirmSheet, getUser, userColor, authorChip,
 } from './ui.js';
 import { localityOptionsHtml, localityName } from './localities-data.js';
 import { AREA_TYPES, AREA_TYPE_ORDER, areaType, REFERENCE_ZCHU, importProtectedAreas } from './protected-areas-data.js';
 import { deleteButton, requestDelete } from './actions.js';
+import { downscaleImage, canIdentify, pickSpecies, speciesChipHtml } from './identify.js';
 
 // Ostrov u Lanškrouna – střed oblasti, kde tým pečuje o lokality.
 const OSTROV = [49.930273, 16.540589];
@@ -427,6 +429,27 @@ function noteFormHtml({ title, category = 'observation', note = '', locality = '
       <label>Poznámka</label>
       <textarea id="note-text" rows="3" placeholder="Např.: tady roste hromada pcháče…">${escapeHtml(note)}</textarea>
     </div>
+    ${editing
+      ? ((item && (item.photoKey || item.species))
+          ? `<div class="field" id="note-photo-section">
+               ${item.photoKey ? `<img class="media-img" loading="lazy" src="${Api.mediaUrl(item.photoKey)}" alt="fotka">` : ''}
+               ${item.species ? speciesChipHtml(item.species) : ''}
+             </div>`
+          : '')
+      : `<div class="field" id="note-photo-section"${category === 'observation' ? '' : ' hidden'}>
+           <label>Fotka + určení druhu <span style="font-weight:500;color:var(--muted)">(u pozorování)</span></label>
+           <div class="row" style="gap:8px">
+             <button type="button" id="note-photo-cam" class="btn-soft" style="flex:1;min-height:44px">📷 Vyfotit</button>
+             <button type="button" id="note-photo-pick" class="btn-soft" style="flex:1;min-height:44px">🖼️ Vybrat</button>
+           </div>
+           <input id="note-photo-cam-input" type="file" accept="image/*" capture="environment" hidden>
+           <input id="note-photo-pick-input" type="file" accept="image/*" hidden>
+           <div id="note-photo-wrap" hidden style="margin-top:8px;position:relative">
+             <img id="note-photo-prev" class="media-img" alt="náhled fotky">
+           </div>
+           <button type="button" id="note-identify" class="btn-soft" style="width:100%;min-height:44px;margin-top:8px" hidden>🌿 Určit druh z fotky</button>
+           <div id="note-species"></div>
+         </div>`}
     <div class="sheet-buttons">
       <button class="primary" data-save type="button">Uložit</button>
       ${editing ? '<button data-shape type="button">Upravit tvar</button>' : ''}
@@ -435,13 +458,14 @@ function noteFormHtml({ title, category = 'observation', note = '', locality = '
     </div>`;
 }
 
-function bindChoice(sheet) {
+function bindChoice(sheet, onChange) {
   let cat = sheet.querySelector('.choice.selected')?.dataset.cat || 'observation';
   sheet.querySelectorAll('.choice').forEach((b) => {
     b.addEventListener('click', () => {
       sheet.querySelectorAll('.choice').forEach((x) => x.classList.remove('selected'));
       b.classList.add('selected');
       cat = b.dataset.cat;
+      if (onChange) onChange(cat);
     });
   });
   return () => cat;
@@ -460,6 +484,8 @@ function openNotePreview(f) {
       ${f._pending ? '<span class="pend">⏳</span>' : ''}
     </div>
     ${f.note ? `<div class="body">${escapeHtml(f.note)}</div>` : '<div class="body" style="color:var(--muted)">(bez poznámky)</div>'}
+    ${f.photoKey ? `<img class="media-img" loading="lazy" src="${Api.mediaUrl(f.photoKey)}" alt="fotka">` : ''}
+    ${f.species ? speciesChipHtml(f.species) : ''}
     <div class="sheet-buttons" style="margin-top:12px">
       <button class="primary" data-edit type="button">✏️ Upravit</button>
       ${deleteButton(f, { mineCls: 'danger', proposeCls: 'secondary', style: '' })}
@@ -512,7 +538,54 @@ function openNoteForm(kind, geometry, tempLayer) {
   };
   // cleanup se spustí i při zavření přes pozadí – dočasný špendlík/plocha tak nikdy nezůstane viset.
   const sheet = openSheet(noteFormHtml({ title: kind === 'point' ? 'Nový bod' : 'Nová plocha' }), cleanup);
-  const getCat = bindChoice(sheet);
+
+  // fotka + určení druhu – sekce viditelná jen u kategorie „Pozorování"
+  const photoSection = sheet.querySelector('#note-photo-section');
+  const getCat = bindChoice(sheet, (cat) => {
+    if (photoSection) photoSection.hidden = cat !== 'observation';
+  });
+
+  let photoBlob = null;
+  let species = null;
+  const photoWrap = sheet.querySelector('#note-photo-wrap');
+  const photoPrev = sheet.querySelector('#note-photo-prev');
+  const camInput = sheet.querySelector('#note-photo-cam-input');
+  const pickInput = sheet.querySelector('#note-photo-pick-input');
+  const idBtn = sheet.querySelector('#note-identify');
+  const spBox = sheet.querySelector('#note-species');
+  const refreshIdBtn = () => {
+    if (idBtn) idBtn.hidden = !(photoBlob && canIdentify());
+  };
+  const onPhoto = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      photoBlob = await downscaleImage(file);
+      photoPrev.src = URL.createObjectURL(photoBlob);
+      photoWrap.hidden = false;
+      species = null;
+      spBox.innerHTML = '';
+      refreshIdBtn();
+    } catch {
+      toast('Fotku se nepodařilo načíst', { error: true });
+    }
+  };
+  if (camInput) {
+    camInput.addEventListener('change', onPhoto);
+    pickInput.addEventListener('change', onPhoto);
+    sheet.querySelector('#note-photo-cam').onclick = () => camInput.click();
+    sheet.querySelector('#note-photo-pick').onclick = () => pickInput.click();
+    idBtn.onclick = async () => {
+      if (!photoBlob) return;
+      const s = await pickSpecies(photoBlob);
+      if (s) {
+        species = s;
+        spBox.innerHTML = speciesChipHtml(s);
+      }
+    };
+  }
+
   sheet.querySelector('[data-cancel]').onclick = () => {
     closeOverlay();
   };
@@ -520,9 +593,18 @@ function openNoteForm(kind, geometry, tempLayer) {
     const category = getCat();
     const note = sheet.querySelector('#note-text').value.trim();
     const locality = sheet.querySelector('#note-locality').value;
+    const rec = { kind, geometry, category, color: catOf(category).color, note, locality };
+    if (category === 'observation' && photoBlob) {
+      try {
+        rec.photoKey = await Api.uploadMedia(photoBlob, 'jpg');
+      } catch {
+        toast('Fotku nelze nahrát offline – bod uložím bez ní', { ms: 3500 });
+      }
+    }
+    if (species) rec.species = species;
     cleanup();
     closeOverlay();
-    await Store.add('notes', { kind, geometry, category, color: catOf(category).color, note, locality });
+    await Store.add('notes', rec);
     toast('Uloženo ✓');
   };
 }

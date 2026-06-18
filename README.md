@@ -80,6 +80,7 @@ Nasazení probíhá **automaticky při pushi do `main`** (repo je napojený na V
 | `SESSION_SECRET` | tajný klíč pro podpis session cookie |
 | `TEAM_MEMBERS` | pojmenované profily a jejich hesla: `Jméno:heslo,Jméno2:heslo2` |
 | `TEAM_ACCESS_CODE` | záložní sdílený přístupový kód týmu |
+| `PLANTNET_API_KEY` | klíč k [Pl@ntNet API](https://my.plantnet.org/) pro určování rostlin z fotky (volitelné – bez něj se funkce skryje za hlášku). Free tier 500 určení/den; pro vyšší limit zažádat o neziskový plán. |
 
 **Změna profilů / hesel** (`TEAM_MEMBERS`):
 

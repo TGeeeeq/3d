@@ -6,6 +6,7 @@ import {
   $, $$, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDateTime, confirmSheet, emptyState, getUser,
 } from './ui.js';
 import { deleteButton, wireDeleteButtons } from './actions.js';
+import { downscaleImage, canIdentify, pickSpecies, speciesChipHtml } from './identify.js';
 
 const DRAFT_KEY = 'ochr.diary.draft';
 const FILTER_KEY = 'ochr.diary.filter';
@@ -26,34 +27,6 @@ function pickAudio() {
     if (window.MediaRecorder && MediaRecorder.isTypeSupported(mime)) return { mime, ext };
   }
   return { mime: '', ext: 'webm' };
-}
-
-// Fotku z mobilu zmenšíme na rozumný rozměr (max 1600 px, JPEG) – ať se nahraje
-// spolehlivě i na slabém signálu a nepřekročí limit 12 MB v /api/media.
-function downscaleImage(file, maxDim = 1600, quality = 0.85) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      let { width: w, height: h } = img;
-      if (w > maxDim || h > maxDim) {
-        const s = maxDim / Math.max(w, h);
-        w = Math.round(w * s);
-        h = Math.round(h * s);
-      }
-      const c = document.createElement('canvas');
-      c.width = w;
-      c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-      c.toBlob((b) => (b ? resolve(b) : reject(new Error('encode_failed'))), 'image/jpeg', quality);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('load_failed'));
-    };
-    img.src = url;
-  });
 }
 
 function setupCanvas(canvas) {
@@ -144,6 +117,8 @@ function openEntryForm() {
         <img id="d-photo-prev" class="media-img" alt="náhled fotky">
         <button type="button" id="d-photo-clear" class="btn-ghost" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,.92);min-height:34px;padding:0 12px">Odebrat</button>
       </div>
+      <button type="button" id="d-identify" class="btn-soft" style="width:100%;min-height:44px;margin-top:8px" hidden>🌿 Určit druh z fotky</button>
+      <div id="d-species"></div>
     </div>
     <div class="field">
       <label>Hlasová poznámka <span style="font-weight:500;color:var(--muted)">(nepovinné)</span></label>
@@ -225,6 +200,20 @@ function openEntryForm() {
   };
 
   let photoBlob = null;
+  let species = null;
+  const idBtn = sheet.querySelector('#d-identify');
+  const spBox = sheet.querySelector('#d-species');
+  const refreshIdBtn = () => {
+    idBtn.hidden = !(photoBlob && canIdentify());
+  };
+  idBtn.onclick = async () => {
+    if (!photoBlob) return;
+    const s = await pickSpecies(photoBlob);
+    if (s) {
+      species = s;
+      spBox.innerHTML = speciesChipHtml(s);
+    }
+  };
   const photoWrap = sheet.querySelector('#d-photo-wrap');
   const photoPrev = sheet.querySelector('#d-photo-prev');
   const camInput = sheet.querySelector('#d-photo-cam-input');
@@ -237,6 +226,9 @@ function openEntryForm() {
       photoBlob = await downscaleImage(file);
       photoPrev.src = URL.createObjectURL(photoBlob);
       photoWrap.hidden = false;
+      species = null;
+      spBox.innerHTML = '';
+      refreshIdBtn();
     } catch {
       toast('Fotku se nepodařilo načíst', { error: true });
     }
@@ -247,8 +239,11 @@ function openEntryForm() {
   sheet.querySelector('#d-photo-pick').onclick = () => pickInput.click();
   sheet.querySelector('#d-photo-clear').onclick = () => {
     photoBlob = null;
+    species = null;
     photoWrap.hidden = true;
     photoPrev.removeAttribute('src');
+    spBox.innerHTML = '';
+    refreshIdBtn();
   };
 
   const clearDraft = () => {
@@ -285,6 +280,7 @@ function openEntryForm() {
       toast('Fotku/kresbu/hlas nelze nahrát bez připojení. Text můžeš uložit hned, médium přidej online.', { error: true, ms: 4500 });
       return;
     }
+    if (species) entry.species = species;
     await Store.add('diary', entry); // text se uloží i offline (fronta)
     clearDraft();
     closeOverlay();
@@ -317,6 +313,7 @@ function renderList(items) {
       const img = e.drawingKey ? `<img class="media-img" loading="lazy" src="${Api.mediaUrl(e.drawingKey)}" alt="kresba">` : '';
       const photo = e.photoKey ? `<img class="media-img" loading="lazy" src="${Api.mediaUrl(e.photoKey)}" alt="fotka z terénu">` : '';
       const audio = e.audioKey ? `<audio class="media-audio" controls preload="none" src="${Api.mediaUrl(e.audioKey)}"></audio>` : '';
+      const sp = e.species ? speciesChipHtml(e.species) : '';
       return `
       <div class="card" style="border-left:4px solid ${userColor(e.author)}">
         <div class="meta" style="margin-top:0;margin-bottom:6px">
@@ -325,7 +322,7 @@ function renderList(items) {
           ${e._pending ? '<span class="pend">⏳ ukládá se</span>' : ''}
         </div>
         ${e.text ? `<div class="body">${escapeHtml(e.text)}</div>` : ''}
-        ${photo}${img}${audio}
+        ${photo}${sp}${img}${audio}
         <div class="sheet-buttons" style="margin-top:10px">
           ${deleteButton(e, { mineCls: 'danger', style: '' })}
         </div>
