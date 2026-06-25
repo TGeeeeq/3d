@@ -2,7 +2,7 @@
 'use strict';
 import { Api } from './api.js';
 import { Store, setLiveCollections, startSync, stopSync, onPending } from './store.js';
-import { $, $$, toast, openOverlay, closeOverlay, setUser } from './ui.js';
+import { $, $$, toast, openOverlay, closeOverlay, setUser, openSheet, escapeHtml } from './ui.js';
 import { MapView } from './map.js';
 import { TrackView, recoverTrackDraft } from './track.js';
 import { DiaryView } from './diary.js';
@@ -175,6 +175,64 @@ function wireTabs() {
   });
 }
 
+// Diagnostika: zjistí, zda jsme přihlášení a kolik záznamů server vrací v každé kolekci.
+// Čistě čtení – nic nemaže ani nemění. Slouží k dohledání „zmizelých" dat.
+async function runDiagnostics() {
+  closeOverlay();
+  const sheet = openSheet(
+    `<h2>🔧 Diagnostika dat</h2>
+     <div id="diag-body"><p style="color:var(--muted)">Zjišťuji…</p></div>
+     <div class="sheet-buttons"><button class="secondary" data-close type="button">Zavřít</button></div>`
+  );
+  sheet.querySelector('[data-close]').onclick = closeOverlay;
+  const body = sheet.querySelector('#diag-body');
+
+  let who = '—';
+  try {
+    const u = await Api.me();
+    who = u && u.name ? u.name : '— (přihlášen, bez jména)';
+  } catch (e) {
+    who = 'NEPŘIHLÁŠEN' + (e && e.status ? ' (' + e.status + ')' : '');
+  }
+
+  const cols = [
+    ['notes', 'Mapa – značky/plochy'],
+    ['diary', 'Deník'],
+    ['finance', 'Peníze'],
+    ['time', 'Hodiny'],
+    ['localities', 'Lokality'],
+    ['tracks', 'Trasy'],
+    ['areas', 'Chráněná území'],
+  ];
+  let totalServer = 0;
+  const rows = [];
+  for (const [c, label] of cols) {
+    let val;
+    try {
+      const items = await Api.list(c);
+      totalServer += items.length;
+      val = `<b>${items.length}</b>`;
+    } catch (e) {
+      val = `<b style="color:var(--danger)">chyba ${e && e.status ? e.status : ''}</b>`;
+    }
+    const local = Store.get(c).length;
+    rows.push(
+      `<div class="row between" style="padding:4px 0"><span>${label}</span><span>${val} <span style="color:var(--muted);font-size:12px">(v telefonu ${local})</span></span></div>`
+    );
+  }
+
+  body.innerHTML = `
+    <div class="row between" style="padding:6px 0;border-bottom:1px solid var(--line);margin-bottom:8px">
+      <span>Přihlášen jako</span><b>${escapeHtml(who)}</b>
+    </div>
+    ${rows.join('')}
+    <p style="color:var(--muted);font-size:13px;line-height:1.45;margin-top:10px">
+      Číslo = kolik záznamů vrací <b>server</b>; v závorce kolik jich máš uložených v telefonu.
+      ${totalServer === 0 ? 'Server vrací 0 – data nejsou v aktuálním úložišti (jiné/prázdné úložiště nebo odhlášení).' : 'Server data má – pokud je v appce nevidíš, je to chyba zobrazení a opravím ji.'}
+      Pošli mi prosím tento výpis (klidně screenshot).
+    </p>`;
+}
+
 function wireMenus() {
   $('#user-chip').addEventListener('click', () => openOverlay($('#app-menu')));
   $('#btn-app-menu-close').addEventListener('click', closeOverlay);
@@ -203,6 +261,7 @@ function wireMenus() {
     );
     toast('Hotovo ✓');
   });
+  $('#btn-diag').addEventListener('click', runDiagnostics);
   $('#btn-logout').addEventListener('click', async () => {
     closeOverlay();
     try {
