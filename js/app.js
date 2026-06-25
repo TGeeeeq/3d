@@ -213,7 +213,8 @@ async function runDiagnostics() {
       totalServer += items.length;
       val = `<b>${items.length}</b>`;
     } catch (e) {
-      val = `<b style="color:var(--danger)">chyba ${e && e.status ? e.status : ''}</b>`;
+      const msg = e && e.message ? String(e.message).slice(0, 80) : '';
+      val = `<b style="color:var(--danger)">chyba ${e && e.status ? e.status : ''}</b><div style="color:var(--danger);font-size:11px;max-width:170px;word-break:break-word">${escapeHtml(msg)}</div>`;
     }
     const local = Store.get(c).length;
     rows.push(

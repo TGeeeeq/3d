@@ -1,6 +1,6 @@
 // Datová vrstva nad Vercel Blob (privátní store).
 // Každý záznam = jeden JSON blob -> bezpečné při souběžných zápisech více uživatelů.
-import { put, get, list, del } from '@vercel/blob';
+import { put, get, head, list, del } from '@vercel/blob';
 
 // Povolené kolekce (whitelist brání path traversal a zneužití).
 export const COLLECTIONS = new Set([
@@ -36,15 +36,61 @@ export function assertId(id) {
 
 const recPath = (c, id) => `records/${c}/${id}.json`;
 
-export async function readJSON(pathname) {
-  const r = await get(pathname, { access: 'private', useCache: false });
-  if (!r || r.statusCode === 304 || !r.stream) return null;
-  const txt = await new Response(r.stream).text();
+function parseJSON(txt) {
   try {
     return JSON.parse(txt);
   } catch {
     return null;
   }
+}
+
+// Robustní čtení obsahu blobu. Zkusí postupně víc cest, protože samotné get() umí
+// na některých storech/verzích vrátit chybu i pro existující privátní blob:
+//   1) přímý fetch downloadUrl/url z výpisu (list) – nejspolehlivější,
+//   2) get() se streamem,
+//   3) autorizovaný fetch přes head() (pro jednotlivé záznamy bez výpisu).
+// `listed` = objekt blobu z list() (má url/downloadUrl), pokud je k dispozici.
+export async function readJSON(pathname, listed = null) {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  let lastErr = null;
+
+  // 1) URL z výpisu – stáhneme rovnou
+  const listedUrl = listed && (listed.downloadUrl || listed.url);
+  if (listedUrl) {
+    try {
+      const res = await fetch(listedUrl);
+      if (res.ok) return parseJSON(await res.text());
+      if (res.status === 404) return null;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+
+  // 2) SDK get() se streamem
+  try {
+    const r = await get(pathname, { access: 'private' });
+    if (r === null) return null; // 404 = neexistuje
+    if (r.statusCode === 200 && r.stream) return parseJSON(await new Response(r.stream).text());
+    if (r.statusCode === 304) return null;
+  } catch (e) {
+    lastErr = e;
+  }
+
+  // 3) head() + autorizovaný fetch (záchrana pro jednotlivý záznam bez `listed`)
+  try {
+    const info = await head(pathname);
+    const url = info.downloadUrl || info.url;
+    if (url) {
+      const res = await fetch(url, token ? { headers: { authorization: `Bearer ${token}` } } : undefined);
+      if (res.ok) return parseJSON(await res.text());
+      if (res.status === 404) return null;
+    }
+  } catch (e) {
+    lastErr = e;
+  }
+
+  if (lastErr) throw lastErr; // ať je skutečná příčina vidět v diagnostice
+  return null;
 }
 
 export async function writeJSON(pathname, obj, contentType = 'application/json') {
@@ -86,6 +132,19 @@ export async function listCollection(c) {
     blobs.push(...res.blobs);
     cursor = res.hasMore ? res.cursor : undefined;
   } while (cursor);
-  const items = await Promise.all(blobs.map((b) => readJSON(b.pathname)));
-  return items.filter(Boolean);
+  if (!blobs.length) return [];
+  // Jeden nečitelný blob nesmí shodit celý výpis (žádné 500). Pokud ale selžou VŠECHNY,
+  // vyhodíme první chybu, ať je v diagnostice vidět skutečná příčina.
+  const settled = await Promise.allSettled(blobs.map((b) => readJSON(b.pathname, b)));
+  const items = [];
+  let firstErr = null;
+  for (const s of settled) {
+    if (s.status === 'fulfilled') {
+      if (s.value) items.push(s.value);
+    } else if (!firstErr) {
+      firstErr = s.reason;
+    }
+  }
+  if (!items.length && firstErr) throw firstErr;
+  return items;
 }
