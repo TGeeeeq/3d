@@ -1,7 +1,7 @@
 /* Service worker – offline app shell. /api a dlaždice map jdou vždy ze sítě. */
 'use strict';
 
-const CACHE = 'ochranar-shell-v4';
+const CACHE = 'ochranar-shell-v5';
 const SHELL = [
   './',
   './index.html',
@@ -49,18 +49,17 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // statika: stale-while-revalidate
+  // statika (JS/CSS/ikony): NETWORK-FIRST – online vždy konzistentní nejnovější verze
+  // (zabrání míchání starých a nových souborů při aktualizaci), cache je jen offline záloha.
   e.respondWith(
-    caches.open(CACHE).then((cache) =>
-      cache.match(request).then((cached) => {
-        const network = fetch(request)
-          .then((res) => {
-            if (res && res.status === 200) cache.put(request, res.clone());
-            return res;
-          })
-          .catch(() => cached);
-        return cached || network;
+    fetch(request)
+      .then((res) => {
+        if (res && res.status === 200) {
+          const clone = res.clone();
+          caches.open(CACHE).then((cache) => cache.put(request, clone));
+        }
+        return res;
       })
-    )
+      .catch(() => caches.match(request))
   );
 });

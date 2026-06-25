@@ -4,7 +4,7 @@
 import { Store } from './store.js';
 import {
   $, $$, toast, openSheet, closeOverlay, escapeHtml, fmtDate, fmtKc, fmtHours,
-  confirmSheet, emptyState, getUser, micBtn, wireDictation, lsGet, lsSet,
+  confirmSheet, emptyState, getUser, authorChip, micBtn, wireDictation, lsGet, lsSet,
 } from './ui.js';
 
 // Druhy záznamu. Mzda je první – příjem počítaný ze sazby × hodin. Ostatní jsou výdaje.
@@ -103,11 +103,10 @@ function openRecordForm() {
 }
 
 function renderMoney() {
-  const me = getUser()?.name;
   const hidden = isHidden();
-  const mine = Store.get('finance').filter((x) => x.author === me);
-  const income = mine.filter((x) => x.type === 'in').reduce((s, x) => s + (Number(x.amount) || 0), 0);
-  const spent = mine.filter((x) => x.type === 'out').reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const all = Store.get('finance');
+  const income = all.filter((x) => x.type === 'in').reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const spent = all.filter((x) => x.type === 'out').reduce((s, x) => s + (Number(x.amount) || 0), 0);
   const balance = income - spent;
 
   const eye = $('#m-eye');
@@ -125,11 +124,11 @@ function renderMoney() {
 
   const list = $('#rec-list');
   if (!list) return;
-  if (!mine.length) {
+  if (!all.length) {
     list.innerHTML = emptyState('🧾', 'Zatím nic. Klepni na + a přidej mzdu nebo výdaj.');
     return;
   }
-  list.innerHTML = mine
+  list.innerHTML = all
     .map((x) => {
       const isIn = x.type === 'in';
       const c = catOf(x.category);
@@ -138,7 +137,7 @@ function renderMoney() {
         <span class="ri-ic">${c.icon}</span>
         <div class="ri-main">
           <div class="ri-title">${escapeHtml(x.category || (isIn ? 'Příjem' : 'Výdaj'))}${x.note ? ` <span class="ri-note">${escapeHtml(x.note)}</span>` : ''} ${x._pending ? '<span class="pend">⏳</span>' : ''}</div>
-          <div class="ri-sub">${escapeHtml(fmtDate(x.date || x.createdAt))}${isIn && x.hours ? ` · ${escapeHtml(fmtHours(x.hours))}` : ''}</div>
+          <div class="ri-sub">${authorChip(x.author)} <span>${escapeHtml(fmtDate(x.date || x.createdAt))}</span>${isIn && x.hours ? ` · ${escapeHtml(fmtHours(x.hours))}` : ''}</div>
         </div>
         <span class="ri-amount money-card ${isIn ? 'leaf' : 'danger'} ${hidden ? 'blurred' : ''}">${isIn ? '+' : '−'}${fmtKc(x.amount)}</span>
         <button class="icon-btn" data-del="${x.id}" type="button" aria-label="Smazat">✕</button>
@@ -164,7 +163,7 @@ export const FinanceView = {
   mount(viewEl) {
     viewEl.innerHTML = `
       <div class="view-head">
-        <div><h2>Moje peníze</h2><div class="sub">Soukromý přehled – jen pro tebe</div></div>
+        <div><h2>Peníze</h2><div class="sub">Příjmy a výdaje · tajný režim</div></div>
         <button id="m-eye" class="eye-toggle" type="button">🙈 Odkrýt</button>
       </div>
       <div class="balance-card">
@@ -175,7 +174,7 @@ export const FinanceView = {
         <div class="stat"><div class="num leaf money-card" id="m-in" style="font-size:19px">••• Kč</div><div class="lbl">Příjmy</div></div>
         <div class="stat"><div class="num danger money-card" id="m-out" style="font-size:19px">••• Kč</div><div class="lbl">Výdaje</div></div>
       </div>
-      <div class="list-divider">Moje příjmy a výdaje</div>
+      <div class="list-divider">Příjmy a výdaje</div>
       <div id="rec-list"></div>
       <button class="fab" id="rec-add" type="button" aria-label="Nový záznam">+</button>`;
     $('#m-eye').addEventListener('click', toggleHidden);
