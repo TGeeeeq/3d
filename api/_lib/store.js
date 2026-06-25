@@ -1,6 +1,6 @@
 // Datová vrstva nad Vercel Blob (privátní store).
 // Každý záznam = jeden JSON blob -> bezpečné při souběžných zápisech více uživatelů.
-import { put, get, head, list, del } from '@vercel/blob';
+import { put, head, list, del } from '@vercel/blob';
 
 // Povolené kolekce (whitelist brání path traversal a zneužití).
 export const COLLECTIONS = new Set([
@@ -44,53 +44,34 @@ function parseJSON(txt) {
   }
 }
 
-// Robustní čtení obsahu blobu. Zkusí postupně víc cest, protože samotné get() umí
-// na některých storech/verzích vrátit chybu i pro existující privátní blob:
-//   1) přímý fetch downloadUrl/url z výpisu (list) – nejspolehlivější,
-//   2) get() se streamem,
-//   3) autorizovaný fetch přes head() (pro jednotlivé záznamy bez výpisu).
-// `listed` = objekt blobu z list() (má url/downloadUrl), pokud je k dispozici.
+// Čtení obsahu blobu přes kanonický URL z výpisu (list) nebo z head().
+// Jeden HTTP požadavek na záznam, s autorizací (funguje pro public i private store).
+// `listed` = objekt blobu z list() (obsahuje url/downloadUrl), pokud je k dispozici.
 export async function readJSON(pathname, listed = null) {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
-  let lastErr = null;
-
-  // 1) URL z výpisu – stáhneme rovnou
-  const listedUrl = listed && (listed.downloadUrl || listed.url);
-  if (listedUrl) {
+  let url = listed && (listed.downloadUrl || listed.url);
+  if (!url) {
     try {
-      const res = await fetch(listedUrl);
-      if (res.ok) return parseJSON(await res.text());
-      if (res.status === 404) return null;
+      const h = await head(pathname);
+      url = h && (h.downloadUrl || h.url);
     } catch (e) {
-      lastErr = e;
+      if (e && (e.name === 'BlobNotFoundError' || e.status === 404)) return null;
+      throw e;
     }
   }
-
-  // 2) SDK get() se streamem
-  try {
-    const r = await get(pathname, { access: 'private' });
-    if (r === null) return null; // 404 = neexistuje
-    if (r.statusCode === 200 && r.stream) return parseJSON(await new Response(r.stream).text());
-    if (r.statusCode === 304) return null;
-  } catch (e) {
-    lastErr = e;
-  }
-
-  // 3) head() + autorizovaný fetch (záchrana pro jednotlivý záznam bez `listed`)
-  try {
-    const info = await head(pathname);
-    const url = info.downloadUrl || info.url;
-    if (url) {
-      const res = await fetch(url, token ? { headers: { authorization: `Bearer ${token}` } } : undefined);
-      if (res.ok) return parseJSON(await res.text());
-      if (res.status === 404) return null;
+  if (!url) return null;
+  const res = await fetch(url, token ? { headers: { authorization: `Bearer ${token}` } } : undefined);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    let host = '';
+    try {
+      host = new URL(url).host;
+    } catch {
+      /* ignore */
     }
-  } catch (e) {
-    lastErr = e;
+    throw new Error(`blob ${res.status} @ ${host}`);
   }
-
-  if (lastErr) throw lastErr; // ať je skutečná příčina vidět v diagnostice
-  return null;
+  return parseJSON(await res.text());
 }
 
 export async function writeJSON(pathname, obj, contentType = 'application/json') {
@@ -133,16 +114,21 @@ export async function listCollection(c) {
     cursor = res.hasMore ? res.cursor : undefined;
   } while (cursor);
   if (!blobs.length) return [];
-  // Jeden nečitelný blob nesmí shodit celý výpis (žádné 500). Pokud ale selžou VŠECHNY,
-  // vyhodíme první chybu, ať je v diagnostice vidět skutečná příčina.
-  const settled = await Promise.allSettled(blobs.map((b) => readJSON(b.pathname, b)));
+  // Čteme po malých dávkách (omezený souběh) – jinak Vercel Blob vrací „Too many requests".
+  // Jeden nečitelný blob neshodí celý výpis; když selžou VŠECHNY, vyhodíme první chybu
+  // (ať je v diagnostice vidět skutečná příčina).
+  const CONCURRENCY = 4;
   const items = [];
   let firstErr = null;
-  for (const s of settled) {
-    if (s.status === 'fulfilled') {
-      if (s.value) items.push(s.value);
-    } else if (!firstErr) {
-      firstErr = s.reason;
+  for (let i = 0; i < blobs.length; i += CONCURRENCY) {
+    const batch = blobs.slice(i, i + CONCURRENCY);
+    const settled = await Promise.allSettled(batch.map((b) => readJSON(b.pathname, b)));
+    for (const s of settled) {
+      if (s.status === 'fulfilled') {
+        if (s.value) items.push(s.value);
+      } else if (!firstErr) {
+        firstErr = s.reason;
+      }
     }
   }
   if (!items.length && firstErr) throw firstErr;
