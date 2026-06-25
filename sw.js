@@ -1,7 +1,7 @@
 /* Service worker – offline app shell. /api a dlaždice map jdou vždy ze sítě. */
 'use strict';
 
-const CACHE = 'ochranar-shell-v18';
+const CACHE = 'ochranar-shell-v19';
 const SHELL = [
   './',
   './index.html',

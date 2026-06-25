@@ -234,6 +234,62 @@ async function runDiagnostics() {
     </p>`;
 }
 
+// Jednorázové zpřístupnění dat: převede uložené záznamy/média na veřejně čitelné.
+// Jde po jedné kolekci (kvůli časovému limitu) a ukazuje průběh.
+async function restoreData() {
+  closeOverlay();
+  const sheet = openSheet(
+    `<h2>🛟 Obnovit moje data</h2>
+     <p style="color:var(--muted);font-size:13px;line-height:1.45">Převedu uložené záznamy na čitelné. Nech appku otevřenou, chvíli to potrvá.</p>
+     <div id="restore-body"></div>
+     <div class="sheet-buttons"><button class="secondary" data-close type="button" disabled>Probíhá…</button></div>`
+  );
+  const body = sheet.querySelector('#restore-body');
+  const closeBtn = sheet.querySelector('[data-close]');
+  const targets = [
+    ['notes', 'Mapa – značky/plochy'],
+    ['diary', 'Deník'],
+    ['finance', 'Peníze'],
+    ['time', 'Hodiny'],
+    ['rewards', 'Odměny'],
+    ['localities', 'Lokality'],
+    ['tracks', 'Trasy'],
+    ['areas', 'Chráněná území'],
+    ['media', 'Fotky a hlas'],
+  ];
+  let totalCopied = 0;
+  for (const [c, label] of targets) {
+    const row = document.createElement('div');
+    row.className = 'row between';
+    row.style.padding = '4px 0';
+    row.innerHTML = `<span>${label}</span><b>…</b>`;
+    body.appendChild(row);
+    try {
+      const r = await Api.migratePublic(c);
+      totalCopied += r.copied || 0;
+      row.querySelector('b').innerHTML = r.errors
+        ? `${r.copied}/${r.total} <span style="color:var(--danger);font-size:11px">(${r.errors} chyb)${r.firstError ? `<br>${escapeHtml(String(r.firstError).slice(0, 70))}` : ''}</span>`
+        : `${r.copied}/${r.total} ✓`;
+    } catch (e) {
+      row.querySelector('b').innerHTML = `<span style="color:var(--danger)">chyba ${e && e.status ? e.status : ''}</span>`;
+    }
+  }
+  const note = document.createElement('p');
+  note.style.cssText = 'font-size:13px;line-height:1.45;margin-top:10px';
+  note.innerHTML = `Hotovo – převedeno ${totalCopied} položek. Teď načtu data znovu.`;
+  body.appendChild(note);
+  closeBtn.disabled = false;
+  closeBtn.textContent = 'Zavřít';
+  closeBtn.onclick = closeOverlay;
+  // znovu načti vše ze serveru
+  await Promise.all(
+    ['notes', 'tracks', 'diary', 'time', 'finance', 'rewards', 'localities', 'areas', 'chat', 'notifications'].map((c) =>
+      Store.refresh(c).catch(() => {})
+    )
+  );
+  toast('Data načtena ✓');
+}
+
 function wireMenus() {
   $('#user-chip').addEventListener('click', () => openOverlay($('#app-menu')));
   $('#btn-app-menu-close').addEventListener('click', closeOverlay);
@@ -263,6 +319,7 @@ function wireMenus() {
     toast('Hotovo ✓');
   });
   $('#btn-diag').addEventListener('click', runDiagnostics);
+  $('#btn-restore').addEventListener('click', restoreData);
   $('#btn-logout').addEventListener('click', async () => {
     closeOverlay();
     try {

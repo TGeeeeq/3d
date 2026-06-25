@@ -59,6 +59,11 @@ export const Api = {
     );
   },
 
+  // Jednorázová migrace blobů kolekce na veřejně čitelné. Vrací { total, copied, errors }.
+  async migratePublic(collection) {
+    return req(`/api/migrate-public?collection=${encodeURIComponent(collection)}`, { method: 'POST' });
+  },
+
   // Rozpoznání rostliny z fotky (proxy na Pl@ntNet). Vrací { results, remaining }.
   async identifyPlant(blob) {
     const res = await fetch('/api/identify', {

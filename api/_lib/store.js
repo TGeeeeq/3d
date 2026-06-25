@@ -76,7 +76,7 @@ export async function readJSON(pathname, listed = null) {
 
 export async function writeJSON(pathname, obj, contentType = 'application/json') {
   await put(pathname, typeof obj === 'string' ? obj : JSON.stringify(obj), {
-    access: 'private',
+    access: 'public', // veřejně čitelné přes downloadUrl (cesty mají neuhodnutelné UUID)
     contentType,
     addRandomSuffix: false,
     allowOverwrite: true,

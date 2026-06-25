@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
-import { put, get } from '@vercel/blob';
+import { put, head } from '@vercel/blob';
 import { requireAuth } from './_lib/auth.js';
 
 // Vlastní čtení binárního těla (vypneme automatický parser).
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
       }
       const key = `media/${crypto.randomUUID()}.${ext}`;
       await put(key, data, {
-        access: 'private',
+        access: 'public',
         contentType,
         addRandomSuffix: false,
         allowOverwrite: false,
@@ -73,14 +73,30 @@ export default async function handler(req, res) {
         res.status(400).json({ error: 'bad_key' });
         return;
       }
-      const r = await get(key, { access: 'private' });
-      if (!r || !r.stream) {
+      const ext = (key.split('.').pop() || '').toLowerCase();
+      let url;
+      try {
+        const info = await head(key);
+        url = info && (info.downloadUrl || info.url);
+      } catch (e) {
+        if (e && (e.name === 'BlobNotFoundError' || e.status === 404)) {
+          res.status(404).json({ error: 'not_found' });
+          return;
+        }
+        throw e;
+      }
+      if (!url) {
         res.status(404).json({ error: 'not_found' });
         return;
       }
-      res.setHeader('Content-Type', r.blob?.contentType || 'application/octet-stream');
-      res.setHeader('Cache-Control', 'private, max-age=86400');
-      Readable.fromWeb(r.stream).pipe(res);
+      const upstream = await fetch(url);
+      if (!upstream.ok || !upstream.body) {
+        res.status(upstream.status === 404 ? 404 : 502).json({ error: 'fetch_failed' });
+        return;
+      }
+      res.setHeader('Content-Type', EXT_CT[ext] || upstream.headers.get('content-type') || 'application/octet-stream');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      Readable.fromWeb(upstream.body).pipe(res);
       return;
     }
 
