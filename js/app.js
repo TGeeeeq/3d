@@ -233,7 +233,18 @@ boot();
 
 // service worker (offline shell)
 if ('serviceWorker' in navigator) {
+  // Když novou verzi převezme nový service worker, jednou stránku obnovíme – ať se po
+  // aktualizaci nemíchají staré a nové soubory (jinak by appka mohla zůstat „prázdná").
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloaded) return;
+    reloaded = true;
+    window.location.reload();
+  });
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker
+      .register('sw.js')
+      .then((reg) => reg.update().catch(() => {}))
+      .catch(() => {});
   });
 }

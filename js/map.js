@@ -5,6 +5,7 @@ import { Store } from './store.js';
 import { Api } from './api.js';
 import {
   $, toast, openSheet, openOverlay, closeOverlay, escapeHtml, fmtDateTime, confirmSheet, getUser, userColor, authorChip,
+  micBtn, wireDictation,
 } from './ui.js';
 import { localityOptionsHtml, localityName } from './localities-data.js';
 import { AREA_TYPES, AREA_TYPE_ORDER, areaType, REFERENCE_ZCHU, importProtectedAreas } from './protected-areas-data.js';
@@ -426,8 +427,8 @@ function noteFormHtml({ title, category = 'observation', note = '', locality = '
       <select id="note-locality">${localityOptionsHtml(locality)}</select>
     </div>
     <div class="field">
-      <label>Poznámka</label>
-      <textarea id="note-text" rows="3" placeholder="Např.: tady roste hromada pcháče…">${escapeHtml(note)}</textarea>
+      <label>Poznámka <span style="font-weight:500;color:var(--muted)">(můžeš i nadiktovat 🎤)</span></label>
+      <div class="ctrl"><textarea id="note-text" rows="3" placeholder="Např.: tady roste hromada pcháče…">${escapeHtml(note)}</textarea>${micBtn('#note-text')}</div>
     </div>
     ${editing
       ? ((item && (item.photoKey || item.species))
@@ -598,6 +599,7 @@ function openNoteForm(kind, geometry, tempLayer) {
   };
   // cleanup se spustí i při zavření přes pozadí – dočasný špendlík/plocha tak nikdy nezůstane viset.
   const sheet = openSheet(noteFormHtml({ title: kind === 'point' ? 'Nový bod' : 'Nová plocha' }), cleanup);
+  wireDictation(sheet);
 
   // fotka + určení druhu – sekce viditelná jen u kategorie „Pozorování"
   const photoSection = sheet.querySelector('#note-photo-section');
@@ -673,6 +675,7 @@ function openNoteView(f) {
   const sheet = openSheet(
     noteFormHtml({ title: 'Poznámka', category: f.category, note: f.note, locality: f.locality, editing: true, item: f })
   );
+  wireDictation(sheet);
   const meta = document.createElement('p');
   meta.className = 'login-foot';
   meta.style.textAlign = 'left';

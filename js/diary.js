@@ -4,6 +4,7 @@ import { Store } from './store.js';
 import { Api } from './api.js';
 import {
   $, $$, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDateTime, confirmSheet, emptyState, getUser,
+  micBtn, wireDictation,
 } from './ui.js';
 import { deleteButton, wireDeleteButtons } from './actions.js';
 import { downscaleImage, canIdentify, pickSpecies, speciesChipHtml } from './identify.js';
@@ -90,8 +91,8 @@ function openEntryForm() {
   const sheet = openSheet(`
     <h2>Nový zápis do deníku</h2>
     <div class="field">
-      <label>Text</label>
-      <textarea id="d-text" rows="4" placeholder="Co se dnes v terénu dělo…">${escapeHtml(draft)}</textarea>
+      <label>Text <span style="font-weight:500;color:var(--muted)">(můžeš i nadiktovat 🎤)</span></label>
+      <div class="ctrl"><textarea id="d-text" rows="4" placeholder="Co se dnes v terénu dělo…">${escapeHtml(draft)}</textarea>${micBtn('#d-text')}</div>
     </div>
     <div class="field">
       <label>Kresba <span style="font-weight:500;color:var(--muted)">(nepovinné)</span></label>
@@ -132,6 +133,8 @@ function openEntryForm() {
       <button class="primary" data-save type="button">Uložit zápis</button>
       <button class="secondary" data-cancel type="button">Zrušit</button>
     </div>`);
+
+  wireDictation(sheet);
 
   const textEl = sheet.querySelector('#d-text');
   textEl.addEventListener('input', () => {

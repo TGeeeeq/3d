@@ -440,3 +440,15 @@ body.fs-2 .tab .ti { font-size: 25px; }
 @media (prefers-reduced-motion: reduce) {
   .cow, .cow *, .login-scene *, .tab.active .ti, .empty .big { animation: none !important; }
 }
+
+/* ============ MIKROFON / HLASOVÉ DIKTOVÁNÍ ============ */
+.ctrl { position: relative; }
+.ctrl textarea { padding-right: 50px; }
+.ctrl.inline input { padding-right: 48px; }
+.mic-btn {
+  position: absolute; right: 8px; bottom: 8px; width: 36px; height: 36px; border-radius: 50%;
+  border: none; background: var(--leaf-soft); color: var(--green); font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent;
+}
+.ctrl.inline .mic-btn { top: 50%; bottom: auto; transform: translateY(-50%); }
+.mic-btn.listening { background: var(--danger); color: #fff; animation: pulse 1s infinite; }
