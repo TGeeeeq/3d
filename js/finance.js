@@ -4,7 +4,7 @@
 import { Store } from './store.js';
 import {
   $, $$, toast, openSheet, closeOverlay, escapeHtml, fmtDate, fmtKc, fmtHours,
-  confirmSheet, emptyState, getUser, userColor, micBtn, wireDictation, lsGet, lsSet,
+  confirmSheet, emptyState, getUser, micBtn, wireDictation, lsGet, lsSet,
 } from './ui.js';
 
 // Druhy záznamu. Mzda je první – příjem počítaný ze sazby × hodin. Ostatní jsou výdaje.
@@ -154,41 +154,13 @@ function renderMoney() {
   });
 }
 
-// Týmový přehled: kdo má kolik odpracovaných hodin (vodorovné pruhy, kompaktní).
-function renderTeam() {
-  const wrap = $('#team-hours');
-  if (!wrap) return;
-  const byAuthor = new Map();
-  for (const t of Store.get('time')) {
-    const a = t.author || '?';
-    byAuthor.set(a, (byAuthor.get(a) || 0) + (Number(t.hours) || 0));
-  }
-  const rows = [...byAuthor.entries()].sort((a, b) => b[1] - a[1]);
-  if (!rows.length) {
-    wrap.innerHTML = `<div class="empty" style="padding:18px 10px">Zatím nikdo nezapsal hodiny.</div>`;
-    return;
-  }
-  const max = Math.max(...rows.map((r) => r[1]), 1);
-  wrap.innerHTML = rows
-    .map(([name, h]) => {
-      const c = userColor(name);
-      const pct = Math.max(6, Math.round((h / max) * 100));
-      return `<div class="bar-row">
-        <span class="bar-name" style="color:${c}">${escapeHtml(name)}</span>
-        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${c}"></div></div>
-        <span class="bar-val">${escapeHtml(fmtHours(h))}</span>
-      </div>`;
-    })
-    .join('');
-}
-
 function toggleHidden() {
   lsSet(HIDE_KEY, isHidden() ? '0' : '1');
   renderMoney();
 }
 
 export const FinanceView = {
-  collections: ['finance', 'time'],
+  collections: ['finance'],
   mount(viewEl) {
     viewEl.innerHTML = `
       <div class="view-head">
@@ -205,12 +177,9 @@ export const FinanceView = {
       </div>
       <div class="list-divider">Moje příjmy a výdaje</div>
       <div id="rec-list"></div>
-      <div class="list-divider">Tým · kdo má kolik odpracováno</div>
-      <div id="team-hours"></div>
       <button class="fab" id="rec-add" type="button" aria-label="Nový záznam">+</button>`;
     $('#m-eye').addEventListener('click', toggleHidden);
     $('#rec-add').addEventListener('click', openRecordForm);
     Store.subscribe('finance', renderMoney);
-    Store.subscribe('time', renderTeam);
   },
 };

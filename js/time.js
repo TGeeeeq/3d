@@ -81,6 +81,34 @@ function renderHours(items) {
   });
 }
 
+// Týmový přehled: kdo má kolik odpracovaných hodin (vodorovné pruhy, kompaktní).
+function renderTeam(items) {
+  const wrap = $('#team-hours');
+  if (!wrap) return;
+  const byAuthor = new Map();
+  for (const t of items) {
+    const a = t.author || '?';
+    byAuthor.set(a, (byAuthor.get(a) || 0) + (Number(t.hours) || 0));
+  }
+  const rows = [...byAuthor.entries()].sort((a, b) => b[1] - a[1]);
+  if (!rows.length) {
+    wrap.innerHTML = '';
+    return;
+  }
+  const max = Math.max(...rows.map((r) => r[1]), 1);
+  wrap.innerHTML = rows
+    .map(([name, h]) => {
+      const c = userColor(name);
+      const pct = Math.max(6, Math.round((h / max) * 100));
+      return `<div class="bar-row">
+        <span class="bar-name" style="color:${c}">${escapeHtml(name)}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${c}"></div></div>
+        <span class="bar-val">${escapeHtml(fmtHours(h))}</span>
+      </div>`;
+    })
+    .join('');
+}
+
 function setFilter(mine) {
   filterMine = mine;
   try {
@@ -101,6 +129,9 @@ export const TimeView = {
         <div class="stat"><div class="num leaf" id="h-total">0 h</div><div class="lbl">Tým celkem</div></div>
         <div class="stat"><div class="num" id="h-mine">0 h</div><div class="lbl">Moje hodiny</div></div>
       </div>
+      <div class="list-divider">Kdo má kolik odpracováno</div>
+      <div id="team-hours"></div>
+      <div class="list-divider">Záznamy</div>
       <div class="seg seg-filter">
         <button data-f="all" class="active" type="button">👥 Vše</button>
         <button data-f="mine" type="button">🙋 Moje</button>
@@ -111,5 +142,6 @@ export const TimeView = {
     $$('#view-time .seg-filter button').forEach((b) => b.classList.toggle('active', (b.dataset.f === 'mine') === filterMine));
     $('#fab-hours').addEventListener('click', openHoursForm);
     Store.subscribe('time', renderHours);
+    Store.subscribe('time', renderTeam);
   },
 };
