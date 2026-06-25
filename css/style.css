@@ -108,7 +108,7 @@ button:disabled { opacity: 0.55; }
 #views { position: relative; flex: 1 1 auto; overflow: hidden; }
 .view { position: absolute; inset: 0; }
 .view[hidden] { display: none; }
-.view.scrollable { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 14px calc(20px + var(--safe-b)); }
+.view.scrollable { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px 12px calc(20px + var(--safe-b)); }
 
 #map { position: absolute; inset: 0; z-index: 0; }
 
@@ -148,8 +148,8 @@ button:disabled { opacity: 0.55; }
 .view-head .sub { font-size: 12.5px; color: var(--muted); }
 
 .card {
-  background: var(--card); border-radius: var(--radius); padding: 14px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); margin-bottom: 12px; border: 1px solid var(--line);
+  background: var(--card); border-radius: var(--radius); padding: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); margin-bottom: 10px; border: 1px solid var(--line);
 }
 .card h3 { margin: 0 0 8px; font-size: 15px; color: var(--green); }
 .card .meta { font-size: 12px; color: var(--muted); margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -164,7 +164,7 @@ button:disabled { opacity: 0.55; }
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 14px; text-align: center;
 }
-.stat .num { font-size: 26px; font-weight: 800; color: var(--green); line-height: 1.1; }
+.stat .num { font-size: 23px; font-weight: 800; color: var(--green); line-height: 1.1; }
 .stat .num.water { color: var(--water); }
 .stat .num.leaf { color: var(--leaf); }
 .stat .num.danger { color: var(--danger); }
@@ -231,18 +231,25 @@ button:disabled { opacity: 0.55; }
 .menu-item.secondary { background: #f0f0f0; color: #555; text-align: center; }
 .menu-item.danger { background: var(--danger-soft); color: var(--danger); }
 
-/* výběr kategorie u špendlíku / plochy */
-.choice-row { display: flex; gap: 10px; margin-bottom: 14px; }
-.choice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+/* výběr kategorie u špendlíku / plochy / výdaje */
+.choice-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.choice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 12px; }
 .choice {
-  border: 2px solid var(--line); border-radius: 13px; background: #fafcfa; padding: 10px 6px;
-  display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; min-height: 74px; justify-content: center;
-  -webkit-tap-highlight-color: transparent;
+  border: 1.5px solid var(--line); border-radius: 11px; background: #fafcfa; padding: 8px 5px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; min-height: 60px; justify-content: center;
+  -webkit-tap-highlight-color: transparent; transition: transform .1s ease, border-color .1s ease;
 }
+.choice:active { transform: scale(.94); }
 .choice-row .choice { flex: 1; }
-.choice .ic { font-size: 23px; line-height: 1; }
-.choice .nm { font-size: 12px; font-weight: 700; color: var(--ink); text-align: center; line-height: 1.15; }
-.choice.selected { border-color: var(--leaf); background: var(--leaf-soft); }
+.choice .ic { font-size: 20px; line-height: 1; }
+.choice .nm { font-size: 11px; font-weight: 700; color: var(--ink); text-align: center; line-height: 1.1; }
+.choice.selected { border-color: var(--leaf); background: var(--leaf-soft); box-shadow: 0 0 0 1px var(--leaf) inset; }
+/* hustší mřížka pro malé displeje (4 sloupce, drobnější dlaždice) */
+.choice-grid.compact { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.choice-grid.compact .choice { min-height: 52px; border-radius: 10px; padding: 6px 3px; }
+.choice-grid.compact .choice .ic { font-size: 18px; }
+.choice-grid.compact .choice .nm { font-size: 10px; }
+@media (max-width: 340px) { .choice-grid.compact { grid-template-columns: repeat(3, 1fr); } }
 
 #color-row { display: flex; gap: 14px; margin: 6px 0 14px; }
 .color-swatch { width: 44px; height: 44px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; padding: 0; }
@@ -353,3 +360,69 @@ button:disabled { opacity: 0.55; }
 @media (prefers-reduced-motion: reduce) {
   .cow, .cow *, .login-scene *, .tab.active .ti, .empty .big { animation: none !important; }
 }
+
+/* ============ KOMPAKTNÍ ŘÁDKOVÉ POLOŽKY (hodiny, výdaje) ============ */
+.row-item {
+  display: flex; align-items: center; gap: 10px; background: var(--card);
+  border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; margin-bottom: 7px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.05);
+}
+.row-item .ri-ic { font-size: 19px; flex: 0 0 auto; width: 24px; text-align: center; }
+.row-item .ri-main { flex: 1 1 auto; min-width: 0; }
+.row-item .ri-title { font-size: 14px; font-weight: 700; color: var(--ink); line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-item .ri-note { font-weight: 500; color: var(--muted); }
+.row-item .ri-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.row-item .ri-amount { font-size: 15px; font-weight: 800; color: var(--green); flex: 0 0 auto; white-space: nowrap; font-family: var(--display); }
+.row-item .ri-amount.leaf { color: var(--leaf); }
+.row-item .ri-amount.danger { color: var(--danger); }
+
+/* malé „smazat" tlačítko (✕) */
+.icon-btn {
+  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; border: none; cursor: pointer;
+  background: #f1f4f1; color: var(--muted); font-size: 14px; font-weight: 700; line-height: 1;
+  display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent;
+}
+.icon-btn:active { background: var(--danger-soft); color: var(--danger); }
+
+/* ============ KOMPAKTNÍ DENÍK ============ */
+.diary-card { padding: 10px 12px; cursor: pointer; }
+.dc-head { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.dc-date { font-size: 11.5px; color: var(--muted); }
+.dc-head .tag { font-size: 12px; opacity: .8; }
+.diary-card .body { font-size: 14px; line-height: 1.45; margin-top: 7px; white-space: pre-wrap; word-break: break-word; }
+.diary-card .body.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.diary-card.open { box-shadow: 0 2px 10px rgba(0,0,0,.1); }
+.dc-media .media-img { max-height: 280px; object-fit: cover; }
+
+/* ============ HINTY / OPTIONAL POPISKY ============ */
+.opt { font-weight: 500; color: var(--muted); font-size: .85em; }
+.hint { font-size: 12.5px; color: var(--muted); line-height: 1.45; margin: -4px 0 12px; }
+.linkish { background: none; border: none; color: var(--leaf); font: inherit; font-weight: 700; cursor: pointer; padding: 0; text-decoration: underline; }
+
+/* ============ MIKROFON / DIKTOVÁNÍ ============ */
+.ctrl { position: relative; }
+.ctrl textarea { padding-right: 50px; }
+.ctrl.inline input { padding-right: 48px; }
+.mic-btn {
+  position: absolute; right: 8px; bottom: 8px; width: 36px; height: 36px; border-radius: 50%;
+  border: none; background: var(--leaf-soft); color: var(--green); font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent;
+}
+.ctrl.inline .mic-btn { top: 50%; bottom: auto; transform: translateY(-50%); }
+.mic-btn.listening { background: var(--danger); color: #fff; animation: pulse 1s infinite; }
+
+/* ============ TAJNÝ REŽIM / PENÍZE ============ */
+.eye-toggle {
+  border: 1.5px solid var(--line); background: #fafcfa; color: var(--muted);
+  border-radius: 20px; padding: 7px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.eye-toggle.on { background: var(--leaf-soft); color: var(--green); border-color: var(--leaf); }
+.balance-card {
+  background: linear-gradient(135deg, #ffffff, #f1f7f1); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 16px 14px; text-align: center; margin-bottom: 10px;
+}
+.balance-card .num { font-size: 30px; font-weight: 800; line-height: 1.05; font-family: var(--display); }
+.balance-card .lbl { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
+.balance-card .basis { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+.money-card { transition: filter .18s ease; }
+.money-card.blurred { filter: blur(7px); }

@@ -139,3 +139,78 @@ export function authorChip(name) {
 export function emptyState(icon, text) {
   return `<div class="empty"><span class="big">${icon}</span>${escapeHtml(text)}</div>`;
 }
+
+// ----- hlasové diktování (Web Speech API) -----
+const SpeechRec = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+export const speechSupported = () => !!SpeechRec;
+
+// HTML pro mikrofonní tlačítko, které diktuje do pole `targetSel` (CSS selektor v rámci sheetu).
+export function micBtn(targetSel) {
+  if (!SpeechRec) return '';
+  return `<button type="button" class="mic-btn" data-dictate="${escapeHtml(targetSel)}" aria-label="Diktovat hlasem">🎤</button>`;
+}
+
+// Oživí všechna [data-dictate] tlačítka v `root`. Klepnutí spustí/zastaví rozpoznávání řeči
+// a vepisuje text do cílového pole (doplňuje za stávající text).
+export function wireDictation(root) {
+  root.querySelectorAll('[data-dictate]').forEach((btn) => {
+    const target = root.querySelector(btn.dataset.dictate);
+    if (!target) { btn.remove(); return; }
+    if (!SpeechRec) { btn.remove(); return; }
+    let rec = null;
+    let active = false;
+    const reset = () => { active = false; btn.classList.remove('listening'); btn.textContent = '🎤'; };
+    btn.addEventListener('click', () => {
+      if (active) { try { rec.stop(); } catch { /* ignore */ } return; }
+      rec = new SpeechRec();
+      rec.lang = 'cs-CZ';
+      rec.interimResults = true;
+      rec.continuous = true;
+      const base = target.value && target.value.trim() ? target.value.replace(/\s+$/, '') + ' ' : '';
+      let finalText = '';
+      rec.onresult = (e) => {
+        let interim = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const tr = e.results[i][0].transcript;
+          if (e.results[i].isFinal) finalText += tr + ' ';
+          else interim += tr;
+        }
+        target.value = base + finalText + interim;
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      rec.onend = reset;
+      rec.onerror = (e) => {
+        reset();
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+          toast('Povol mikrofon v prohlížeči', { error: true });
+        }
+      };
+      try {
+        rec.start();
+        active = true;
+        btn.classList.add('listening');
+        btn.textContent = '⏺';
+        toast('Mluv… klepnutím na ⏺ zastavíš', { ms: 2000 });
+      } catch {
+        reset();
+      }
+    });
+  });
+}
+
+// ----- drobné lokální (soukromé) nastavení v zařízení -----
+export function lsGet(key, fallback = null) {
+  try {
+    const v = localStorage.getItem(key);
+    return v == null ? fallback : v;
+  } catch {
+    return fallback;
+  }
+}
+export function lsSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}

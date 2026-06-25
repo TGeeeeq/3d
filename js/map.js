@@ -3,7 +3,8 @@
 'use strict';
 import { Store } from './store.js';
 import {
-  $, toast, openSheet, openOverlay, closeOverlay, escapeHtml, fmtDateTime, confirmSheet, getUser, userColor,
+  $, toast, openSheet, openOverlay, closeOverlay, escapeHtml, fmtDateTime, confirmSheet,
+  getUser, userColor, micBtn, wireDictation,
 } from './ui.js';
 
 // Ostrov u Lanškrouna – střed oblasti, kde tým pečuje o lokality.
@@ -234,10 +235,10 @@ function noteFormHtml({ title, category = 'observation', note = '', editing = fa
   const choices = Object.keys(CATS).map(choice).join('');
   return `
     <h2>${escapeHtml(title)}</h2>
-    <div class="choice-grid">${choices}</div>
+    <div class="choice-grid compact">${choices}</div>
     <div class="field">
-      <label>Poznámka</label>
-      <textarea id="note-text" rows="3" placeholder="Např.: tady roste hromada pcháče…">${escapeHtml(note)}</textarea>
+      <label>Poznámka <span class="opt">(můžeš i nadiktovat 🎤)</span></label>
+      <div class="ctrl"><textarea id="note-text" rows="3" placeholder="Např.: tady roste hromada pcháče…">${escapeHtml(note)}</textarea>${micBtn('#note-text')}</div>
     </div>
     <div class="sheet-buttons">
       <button class="primary" data-save type="button">Uložit</button>
@@ -261,6 +262,7 @@ function bindChoice(sheet) {
 
 function openNoteForm(kind, geometry, tempLayer) {
   const sheet = openSheet(noteFormHtml({ title: kind === 'point' ? 'Nový bod' : 'Nová plocha' }));
+  wireDictation(sheet);
   const getCat = bindChoice(sheet);
   const cleanup = () => {
     if (tempLayer && map.hasLayer(tempLayer)) map.removeLayer(tempLayer);
@@ -288,6 +290,7 @@ function openNoteView(f) {
   meta.style.textAlign = 'left';
   meta.innerHTML = `Vložil(a): <b style="color:${userColor(f.author)}">${escapeHtml(f.author || '?')}</b> · ${escapeHtml(fmtDateTime(f.createdAt))}${f._pending ? ' · ⏳ čeká na odeslání' : ''}`;
   sheet.appendChild(meta);
+  wireDictation(sheet);
   const getCat = bindChoice(sheet);
 
   sheet.querySelector('[data-cancel]').onclick = closeOverlay;

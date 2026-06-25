@@ -18,11 +18,13 @@ Nahrávaná trasa se průběžně zálohuje a přežije i zavření appky.
   **dvou kategorií**: 🪲 *Problém / zásah* nebo 🌿 *Pozorování*. Funguje GPS poloha i export do GeoJSON.
 - **🥾 Trasa** – volitelné **trackování pohybu** přes GPS s živou mapou a **počítáním nachozených metrů**.
   Uložené trasy se sčítají do týmového součtu.
-- **📓 Deník** – terénní zápisky: **text, kresba** (prstem na plátno) nebo **hlasová poznámka** (nahrávání
-  přes mikrofon). Vše sdílené v týmu.
+- **📓 Deník** – terénní zápisky: **text** (lze i **nadiktovat hlasem** 🎤), **kresba** (prstem na plátno)
+  nebo **hlasová poznámka** (nahrávání přes mikrofon). Zápisy jsou kompaktní – klepnutím se rozbalí celý text.
 - **⏱️ Hodiny & odměny** – výkaz **dobrovolnických hodin** (důležité pro reporting ČSOP) a motivační
   **body** za odpracovaný čas + nástěnka odměn.
-- **💰 Finance** – jednoduchý správce **příjmů a výdajů** týmu se zůstatkem a kategoriemi.
+- **💰 Peníze** – **soukromý** přehled jednotlivce: **výdělek** z odpracovaných hodin podle vlastní
+  hodinové sazby a osobní **výdaje** (benzín, doprava, jídlo, ubytování…). Funguje **tajný režim** –
+  částky jsou rozmazané a odkryjí se klepnutím na oko. Sazba i tajný režim zůstávají jen v zařízení.
 - **📍 Lokality ve správě** – seznam spravovaných míst s rozlohou, popisem a odkazy (připraveno k rozšíření).
 
 Aplikace je **PWA** – na telefonu ji přes „Přidat na plochu“ používáš jako běžnou appku přes celou

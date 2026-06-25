@@ -3,7 +3,8 @@
 import { Store } from './store.js';
 import { Api } from './api.js';
 import {
-  $, $$, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDateTime, confirmSheet, emptyState, getUser,
+  $, $$, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDateTime,
+  confirmSheet, emptyState, getUser, micBtn, wireDictation,
 } from './ui.js';
 
 const DRAFT_KEY = 'ochr.diary.draft';
@@ -88,8 +89,8 @@ function openEntryForm() {
   const sheet = openSheet(`
     <h2>Nový zápis do deníku</h2>
     <div class="field">
-      <label>Text</label>
-      <textarea id="d-text" rows="4" placeholder="Co se dnes v terénu dělo…">${escapeHtml(draft)}</textarea>
+      <label>Text <span class="opt">(můžeš i nadiktovat 🎤)</span></label>
+      <div class="ctrl"><textarea id="d-text" rows="4" placeholder="Co se dnes v terénu dělo…">${escapeHtml(draft)}</textarea>${micBtn('#d-text')}</div>
     </div>
     <div class="field">
       <label>Kresba <span style="font-weight:500;color:var(--muted)">(nepovinné)</span></label>
@@ -115,6 +116,8 @@ function openEntryForm() {
       <button class="primary" data-save type="button">Uložit zápis</button>
       <button class="secondary" data-cancel type="button">Zrušit</button>
     </div>`);
+
+  wireDictation(sheet);
 
   const textEl = sheet.querySelector('#d-text');
   textEl.addEventListener('input', () => {
@@ -244,25 +247,39 @@ function renderList(items) {
   }
   list.innerHTML = shown
     .map((e) => {
+      const hasMedia = e.drawingKey || e.audioKey;
+      const icons = `${e.drawingKey ? '<span class="tag">✏️</span>' : ''}${e.audioKey ? '<span class="tag">🎙️</span>' : ''}`;
       const img = e.drawingKey ? `<img class="media-img" loading="lazy" src="${Api.mediaUrl(e.drawingKey)}" alt="kresba">` : '';
       const audio = e.audioKey ? `<audio class="media-audio" controls preload="none" src="${Api.mediaUrl(e.audioKey)}"></audio>` : '';
       return `
-      <div class="card" style="border-left:4px solid ${userColor(e.author)}">
-        <div class="meta" style="margin-top:0;margin-bottom:6px">
+      <div class="card diary-card" style="border-left:3px solid ${userColor(e.author)}" data-id="${e.id}">
+        <div class="dc-head">
           ${authorChip(e.author)}
-          <span>${escapeHtml(fmtDateTime(e.createdAt))}</span>
-          ${e._pending ? '<span class="pend">⏳ ukládá se</span>' : ''}
+          <span class="dc-date">${escapeHtml(fmtDateTime(e.createdAt))}</span>
+          ${icons}
+          ${e._pending ? '<span class="pend">⏳</span>' : ''}
+          <span class="spacer"></span>
+          <button class="icon-btn" data-del="${e.id}" type="button" aria-label="Smazat">✕</button>
         </div>
-        ${e.text ? `<div class="body">${escapeHtml(e.text)}</div>` : ''}
-        ${img}${audio}
-        <div class="sheet-buttons" style="margin-top:10px">
-          <button class="danger" data-del="${e.id}" type="button">Smazat</button>
-        </div>
+        ${e.text ? `<div class="body clamp" data-text>${escapeHtml(e.text)}</div>` : ''}
+        ${hasMedia ? `<div class="dc-media" hidden>${img}${audio}</div>` : ''}
       </div>`;
     })
     .join('');
+
+  // Klepnutí na kartu rozbalí/sbalí dlouhý text a média (kompaktní seznam, detail na vyžádání).
+  list.querySelectorAll('.diary-card').forEach((card) => {
+    card.addEventListener('click', (ev) => {
+      if (ev.target.closest('[data-del]') || ev.target.closest('audio')) return;
+      const open = card.classList.toggle('open');
+      card.querySelector('[data-text]')?.classList.toggle('clamp', !open);
+      const media = card.querySelector('.dc-media');
+      if (media) media.hidden = !open;
+    });
+  });
   list.querySelectorAll('[data-del]').forEach((b) => {
-    b.onclick = async () => {
+    b.onclick = async (ev) => {
+      ev.stopPropagation();
       if (!(await confirmSheet('Smazat tento zápis?', { okText: 'Smazat', danger: true }))) return;
       await Store.remove('diary', b.dataset.del);
       toast('Smazáno');

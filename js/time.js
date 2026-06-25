@@ -2,7 +2,8 @@
 'use strict';
 import { Store } from './store.js';
 import {
-  $, $$, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDate, fmtHours, confirmSheet, emptyState, getUser,
+  $, $$, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDate, fmtHours,
+  confirmSheet, emptyState, getUser, micBtn, wireDictation,
 } from './ui.js';
 
 const POINTS_PER_HOUR = 10;
@@ -22,11 +23,13 @@ function openHoursForm() {
     <div class="field-row">
       <div class="field"><label>Hodin</label><input id="h-hours" type="number" inputmode="decimal" min="0.5" step="0.5" value="2"></div>
     </div>
-    <div class="field"><label>Činnost</label><input id="h-act" type="text" placeholder="např. sečení pcháče, výsadba, monitoring, kravky" maxlength="120"></div>
+    <div class="field"><label>Činnost <span class="opt">(můžeš i nadiktovat 🎤)</span></label>
+      <div class="ctrl inline"><input id="h-act" type="text" placeholder="např. sečení pcháče, výsadba, kravky" maxlength="120">${micBtn('#h-act')}</div></div>
     <div class="sheet-buttons">
       <button class="primary" data-save type="button">Uložit</button>
       <button class="secondary" data-cancel type="button">Zrušit</button>
     </div>`);
+  wireDictation(sheet);
   sheet.querySelector('[data-cancel]').onclick = closeOverlay;
   sheet.querySelector('[data-save]').onclick = async () => {
     const hours = parseFloat(sheet.querySelector('#h-hours').value);
@@ -83,17 +86,14 @@ function renderHours(items) {
   list.innerHTML = shown
     .map(
       (t) => `
-    <div class="card" style="border-left:4px solid ${userColor(t.author)}">
-      <div class="row between">
-        <h3>${escapeHtml(t.activity || 'Práce v terénu')} ${t._pending ? '<span class="pend">⏳</span>' : ''}</h3>
-        <span class="num leaf" style="font-size:18px;font-weight:800">${escapeHtml(fmtHours(t.hours))}</span>
+    <div class="row-item" style="border-left:3px solid ${userColor(t.author)}">
+      <span class="ri-ic">⏱️</span>
+      <div class="ri-main">
+        <div class="ri-title">${escapeHtml(t.activity || 'Práce v terénu')} ${t._pending ? '<span class="pend">⏳</span>' : ''}</div>
+        <div class="ri-sub">${authorChip(t.author)} <span>${escapeHtml(fmtDate(t.date || t.createdAt))}</span></div>
       </div>
-      <div class="meta">
-        ${authorChip(t.author)}
-        <span>${escapeHtml(fmtDate(t.date || t.createdAt))}</span>
-        <span class="spacer"></span>
-        <button class="btn-ghost" data-del="${t.id}" type="button" style="min-height:32px;padding:0 12px">Smazat</button>
-      </div>
+      <span class="ri-amount leaf">${escapeHtml(fmtHours(t.hours))}</span>
+      <button class="icon-btn" data-del="${t.id}" type="button" aria-label="Smazat">✕</button>
     </div>`
     )
     .join('');

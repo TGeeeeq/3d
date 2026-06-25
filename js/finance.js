@@ -1,144 +1,192 @@
-// Finance: jednoduchý správce příjmů a výdajů týmu.
+// Peníze: SOUKROMÝ přehled jednotlivce – výdělek z hodin (tajný režim) a vlastní výdaje.
+// Vše je osobní: výdaje vidí jen autor, sazba i tajný režim jsou uložené pouze v zařízení.
 'use strict';
 import { Store } from './store.js';
 import {
-  $, $$, toast, openSheet, closeOverlay, escapeHtml, authorChip, userColor, fmtDate, fmtKc, confirmSheet, emptyState, getUser,
+  $, $$, toast, openSheet, closeOverlay, escapeHtml, fmtDate, fmtKc, fmtHours,
+  confirmSheet, emptyState, getUser, micBtn, wireDictation, lsGet, lsSet,
 } from './ui.js';
 
-const CATS = ['Materiál', 'Doprava', 'Nářadí', 'Dotace', 'Dar', 'Občerstvení', 'Ostatní'];
-const FILTER_KEY = 'ochr.finance.filter';
-let filterMine = false;
-try {
-  filterMine = localStorage.getItem(FILTER_KEY) === 'mine';
-} catch {
-  /* ignore */
-}
+// Rychlý výběr kategorií výdaje (terén = benzín, doprava, jídlo, nocleh, materiál…).
+const EXPENSE_CATS = [
+  { key: 'Benzín', icon: '⛽' },
+  { key: 'Doprava', icon: '🚗' },
+  { key: 'Jídlo', icon: '🍽️' },
+  { key: 'Ubytování', icon: '🛏️' },
+  { key: 'Materiál', icon: '🧰' },
+  { key: 'Ostatní', icon: '🔧' },
+];
+const catIcon = (name) => (EXPENSE_CATS.find((c) => c.key === name) || EXPENSE_CATS[5]).icon;
+
+const RATE_KEY = 'ochr.rate'; // Kč / hodina (soukromé, jen v zařízení)
+const HIDE_KEY = 'ochr.money.hidden'; // '1' = tajný režim zapnutý (výchozí)
+
+const getRate = () => Math.max(0, parseFloat(lsGet(RATE_KEY, '0')) || 0);
+const isHidden = () => lsGet(HIDE_KEY, '1') !== '0';
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-function openForm() {
-  const opts = CATS.map((c) => `<option value="${c}">${c}</option>`).join('');
+// Částky jsou v tajném režimu rozmazané přes CSS (.money-card.blurred) – v DOM zůstávají reálné,
+// odkrytí je tak okamžité klepnutím na oko.
+const money = (n) => fmtKc(n);
+
+function openRateForm() {
   const sheet = openSheet(`
-    <h2>Nový pohyb</h2>
-    <div class="seg" id="f-type">
-      <button data-type="out" class="active" type="button">➖ Výdaj</button>
-      <button data-type="in" type="button">➕ Příjem</button>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>Částka (Kč)</label><input id="f-amount" type="number" inputmode="decimal" min="0" step="1" value=""></div>
-      <div class="field"><label>Datum</label><input id="f-date" type="date" value="${todayISO()}"></div>
-    </div>
-    <div class="field"><label>Kategorie</label><select id="f-cat">${opts}</select></div>
-    <div class="field"><label>Popis</label><input id="f-note" type="text" placeholder="za co / od koho" maxlength="120"></div>
+    <h2>Moje hodinová sazba</h2>
+    <p class="hint">Kolik si počítáš za hodinu práce. Uloží se jen v tomto zařízení – nikdo jiný ji nevidí.</p>
+    <div class="field"><label>Sazba (Kč / hodina)</label>
+      <input id="rate" type="number" inputmode="decimal" min="0" step="10" value="${getRate() || ''}" placeholder="např. 250"></div>
     <div class="sheet-buttons">
       <button class="primary" data-save type="button">Uložit</button>
       <button class="secondary" data-cancel type="button">Zrušit</button>
     </div>`);
-  let type = 'out';
-  sheet.querySelectorAll('#f-type button').forEach((b) =>
+  sheet.querySelector('[data-cancel]').onclick = closeOverlay;
+  sheet.querySelector('[data-save]').onclick = () => {
+    const v = Math.max(0, parseFloat(sheet.querySelector('#rate').value) || 0);
+    lsSet(RATE_KEY, String(v));
+    closeOverlay();
+    renderAll();
+    toast('Sazba uložena ✓');
+  };
+}
+
+function openExpenseForm() {
+  const chips = EXPENSE_CATS.map(
+    (c, i) => `<button type="button" class="choice ${i === 0 ? 'selected' : ''}" data-cat="${c.key}">
+      <span class="ic">${c.icon}</span><span class="nm">${c.key}</span></button>`
+  ).join('');
+  const sheet = openSheet(`
+    <h2>Nový výdaj</h2>
+    <div class="choice-grid compact" id="e-cats">${chips}</div>
+    <div class="field-row">
+      <div class="field"><label>Částka (Kč)</label><input id="e-amount" type="number" inputmode="decimal" min="0" step="1" placeholder="0"></div>
+      <div class="field"><label>Datum</label><input id="e-date" type="date" value="${todayISO()}"></div>
+    </div>
+    <div class="field"><label>Poznámka <span class="opt">(nepovinné)</span></label>
+      <div class="ctrl inline"><input id="e-note" type="text" placeholder="za co" maxlength="120">${micBtn('#e-note')}</div></div>
+    <div class="sheet-buttons">
+      <button class="primary" data-save type="button">Uložit výdaj</button>
+      <button class="secondary" data-cancel type="button">Zrušit</button>
+    </div>`);
+  let cat = EXPENSE_CATS[0].key;
+  sheet.querySelectorAll('#e-cats .choice').forEach((b) =>
     b.addEventListener('click', () => {
-      type = b.dataset.type;
-      sheet.querySelectorAll('#f-type button').forEach((x) => x.classList.remove('active'));
-      b.classList.add('active');
+      sheet.querySelectorAll('#e-cats .choice').forEach((x) => x.classList.remove('selected'));
+      b.classList.add('selected');
+      cat = b.dataset.cat;
     })
   );
+  wireDictation(sheet);
   sheet.querySelector('[data-cancel]').onclick = closeOverlay;
   sheet.querySelector('[data-save]').onclick = async () => {
-    const amount = parseFloat(sheet.querySelector('#f-amount').value);
+    const amount = parseFloat(sheet.querySelector('#e-amount').value);
     if (!amount || amount <= 0) {
       toast('Zadej částku');
       return;
     }
-    const data = {
-      type,
-      amount,
-      category: sheet.querySelector('#f-cat').value,
-      note: sheet.querySelector('#f-note').value.trim(),
-      date: sheet.querySelector('#f-date').value || todayISO(),
-    };
     closeOverlay();
-    await Store.add('finance', data);
-    toast('Uloženo ✓');
+    await Store.add('finance', {
+      type: 'out',
+      amount,
+      category: cat,
+      note: sheet.querySelector('#e-note').value.trim(),
+      date: sheet.querySelector('#e-date').value || todayISO(),
+    });
+    toast('Výdaj uložen ✓');
   };
 }
 
-function render(items) {
-  const income = items.filter((x) => x.type === 'in').reduce((s, x) => s + (Number(x.amount) || 0), 0);
-  const expense = items.filter((x) => x.type === 'out').reduce((s, x) => s + (Number(x.amount) || 0), 0);
-  const balance = income - expense;
-  if ($('#f-balance')) {
-    $('#f-balance').textContent = fmtKc(balance);
-    $('#f-balance').className = 'num ' + (balance < 0 ? 'danger' : 'leaf');
-  }
-  if ($('#f-in')) $('#f-in').textContent = fmtKc(income);
-  if ($('#f-out')) $('#f-out').textContent = fmtKc(expense);
-
-  const list = $('#fin-list');
-  if (!list) return;
+function renderAll() {
   const me = getUser()?.name;
-  const shown = filterMine ? items.filter((x) => x.author === me) : items;
-  if (!shown.length) {
-    list.innerHTML = emptyState('💰', 'Žádné pohyby. Klepni na + a zaznamenej příjem nebo výdaj.');
+  const rate = getRate();
+  const hidden = isHidden();
+
+  const myHours = Store.get('time').filter((t) => t.author === me).reduce((s, t) => s + (Number(t.hours) || 0), 0);
+  const earnings = myHours * rate;
+  const myExpenses = Store.get('finance').filter((x) => x.author === me && x.type === 'out');
+  const spent = myExpenses.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const balance = earnings - spent;
+
+  const eye = $('#m-eye');
+  if (eye) {
+    eye.textContent = hidden ? '🙈 Odkrýt' : '🙉 Skrýt';
+    eye.classList.toggle('on', !hidden);
+  }
+
+  if ($('#m-balance')) {
+    $('#m-balance').textContent = money(balance);
+    $('#m-balance').className = 'num money-card ' + (balance < 0 ? 'danger' : 'leaf') + (hidden ? ' blurred' : '');
+  }
+  if ($('#m-earn')) $('#m-earn').textContent = money(earnings);
+  if ($('#m-spent')) $('#m-spent').textContent = money(spent);
+  $$('#view-finance .stat .money-card').forEach((c) => c.classList.toggle('blurred', hidden));
+  if ($('#m-basis')) {
+    if (!rate) {
+      $('#m-basis').innerHTML = `<button class="linkish" id="m-rate" type="button">⚙️ Nastav si hodinovou sazbu</button>`;
+    } else {
+      const detail = hidden ? `z tvých ${fmtHours(myHours)}` : `${fmtHours(myHours)} × ${fmtKc(rate)}/h`;
+      $('#m-basis').innerHTML = `${detail} &middot; <button class="linkish" id="m-rate" type="button">sazba</button>`;
+    }
+    const rb = $('#m-rate');
+    if (rb) rb.onclick = openRateForm;
+  }
+
+  const list = $('#exp-list');
+  if (!list) return;
+  if (!myExpenses.length) {
+    list.innerHTML = emptyState('🧾', 'Zatím žádné výdaje. Klepni na + a přidej třeba benzín nebo jídlo.');
     return;
   }
-  list.innerHTML = shown
-    .map((x) => {
-      const isIn = x.type === 'in';
-      return `
-      <div class="card" style="border-left:4px solid ${userColor(x.author)}">
-        <div class="row between">
-          <h3>${escapeHtml(x.note || x.category)} ${x._pending ? '<span class="pend">⏳</span>' : ''}</h3>
-          <span class="num ${isIn ? 'leaf' : 'danger'}" style="font-size:18px;font-weight:800">${isIn ? '+' : '−'}${escapeHtml(fmtKc(x.amount))}</span>
+  list.innerHTML = myExpenses
+    .map(
+      (x) => `
+      <div class="row-item">
+        <span class="ri-ic">${catIcon(x.category)}</span>
+        <div class="ri-main">
+          <div class="ri-title">${escapeHtml(x.category || 'Výdaj')}${x.note ? ` <span class="ri-note">${escapeHtml(x.note)}</span>` : ''} ${x._pending ? '<span class="pend">⏳</span>' : ''}</div>
+          <div class="ri-sub">${escapeHtml(fmtDate(x.date || x.createdAt))}</div>
         </div>
-        <div class="meta">
-          <span class="pill ${isIn ? 'money-in' : 'money-out'}">${escapeHtml(x.category || (isIn ? 'Příjem' : 'Výdaj'))}</span>
-          ${authorChip(x.author)}
-          <span>${escapeHtml(fmtDate(x.date || x.createdAt))}</span>
-          <span class="spacer"></span>
-          <button class="btn-ghost" data-del="${x.id}" type="button" style="min-height:32px;padding:0 12px">Smazat</button>
-        </div>
-      </div>`;
-    })
+        <span class="ri-amount money-card ${hidden ? 'blurred' : ''}">−${money(x.amount)}</span>
+        <button class="icon-btn" data-del="${x.id}" type="button" aria-label="Smazat">✕</button>
+      </div>`
+    )
     .join('');
   list.querySelectorAll('[data-del]').forEach((b) => {
     b.onclick = async () => {
-      if (!(await confirmSheet('Smazat tento pohyb?', { okText: 'Smazat', danger: true }))) return;
+      if (!(await confirmSheet('Smazat tento výdaj?', { okText: 'Smazat', danger: true }))) return;
       await Store.remove('finance', b.dataset.del);
       toast('Smazáno');
     };
   });
 }
 
-function setFilter(mine) {
-  filterMine = mine;
-  try {
-    localStorage.setItem(FILTER_KEY, mine ? 'mine' : 'all');
-  } catch {
-    /* ignore */
-  }
-  $$('#view-finance .seg-filter button').forEach((b) => b.classList.toggle('active', (b.dataset.f === 'mine') === mine));
-  render(Store.get('finance'));
+function toggleHidden() {
+  lsSet(HIDE_KEY, isHidden() ? '0' : '1');
+  renderAll();
 }
 
 export const FinanceView = {
-  collections: ['finance'],
+  collections: ['finance', 'time'],
   mount(viewEl) {
     viewEl.innerHTML = `
-      <div class="view-head"><div><h2>Finance</h2><div class="sub">Příjmy a výdaje týmu</div></div></div>
-      <div class="stat" style="margin-bottom:10px"><div class="num leaf" id="f-balance">0 Kč</div><div class="lbl">Zůstatek</div></div>
+      <div class="view-head">
+        <div><h2>Moje peníze</h2><div class="sub">Soukromý přehled – jen pro tebe</div></div>
+        <button id="m-eye" class="eye-toggle" type="button">🙈 Odkrýt</button>
+      </div>
+      <div class="balance-card">
+        <div class="num leaf money-card" id="m-balance">••• Kč</div>
+        <div class="lbl">Zůstatek</div>
+        <div class="basis" id="m-basis"></div>
+      </div>
       <div class="stat-grid">
-        <div class="stat"><div class="num leaf" id="f-in" style="font-size:18px">0 Kč</div><div class="lbl">Příjmy</div></div>
-        <div class="stat"><div class="num danger" id="f-out" style="font-size:18px">0 Kč</div><div class="lbl">Výdaje</div></div>
+        <div class="stat"><div class="num leaf money-card" id="m-earn" style="font-size:19px">••• Kč</div><div class="lbl">Výdělek</div></div>
+        <div class="stat"><div class="num danger money-card" id="m-spent" style="font-size:19px">••• Kč</div><div class="lbl">Výdaje</div></div>
       </div>
-      <div class="seg seg-filter">
-        <button data-f="all" class="active" type="button">👥 Vše</button>
-        <button data-f="mine" type="button">🙋 Moje</button>
-      </div>
-      <div class="list-divider">Pohyby</div>
-      <div id="fin-list"></div>
-      <button class="fab" id="fin-add" type="button" aria-label="Nový pohyb">+</button>`;
-    $$('#view-finance .seg-filter button').forEach((b) => b.addEventListener('click', () => setFilter(b.dataset.f === 'mine')));
-    $$('#view-finance .seg-filter button').forEach((b) => b.classList.toggle('active', (b.dataset.f === 'mine') === filterMine));
-    $('#fin-add').addEventListener('click', openForm);
-    Store.subscribe('finance', render);
+      <div class="list-divider">Moje výdaje</div>
+      <div id="exp-list"></div>
+      <button class="fab" id="exp-add" type="button" aria-label="Nový výdaj">+</button>`;
+    $('#m-eye').addEventListener('click', toggleHidden);
+    $('#exp-add').addEventListener('click', openExpenseForm);
+    Store.subscribe('finance', renderAll);
+    Store.subscribe('time', renderAll);
   },
 };
